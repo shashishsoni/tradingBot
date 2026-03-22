@@ -1,13 +1,14 @@
 # Single Render Blueprint (repo root only). New → Blueprint → connect this GitHub repo.
-# 1) Deploy once, copy the web service URL.
+# Static sites use type: web + runtime: static (not type: static).
+# 1) Deploy once, copy the backend web service URL.
 # 2) Set indotrade/frontend/js/config.js → window.INDOTRADE_API_BASE to that URL (no trailing slash).
 # 3) Commit + push; static site will redeploy.
-# 4) In the backend service, set FRONTEND_URL to your static site URL (optional; CORS defaults to *).
+# 4) Optional: set FRONTEND_URL on the backend to your static site URL.
 
 services:
   - type: web
     name: indotrade-backend
-    env: node
+    runtime: node
     buildCommand: cd indotrade/backend && npm install
     startCommand: cd indotrade/backend && node server.js
     envVars:
@@ -19,7 +20,8 @@ services:
         sync: false
     plan: free
 
-  - type: static
+  - type: web
     name: indotrade-frontend
+    runtime: static
+    buildCommand: "true"
     staticPublishPath: indotrade/frontend
-    plan: free
