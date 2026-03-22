@@ -1,4 +1,10 @@
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : 'https://your-backend.onrender.com/api';
+const API = (() => {
+  const base = typeof window !== 'undefined' && window.INDOTRADE_API_BASE && String(window.INDOTRADE_API_BASE).trim();
+  if (base) return base.replace(/\/$/, '') + '/api';
+  const local = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (local) return 'http://localhost:3001/api';
+  return 'https://your-backend.onrender.com/api';
+})();
 
 async function fetchJSON(url) {
   try {
