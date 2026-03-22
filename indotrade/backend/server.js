@@ -8,7 +8,15 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
-app.use('/api/', rateLimit({ windowMs: 60000, max: 30 }));
+app.use(
+  '/api/',
+  rateLimit({
+    windowMs: 60_000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
 
 app.use('/api/equity', require('./routes/equity'));
 app.use('/api/crypto', require('./routes/crypto'));

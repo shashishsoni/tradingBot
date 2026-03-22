@@ -2,6 +2,10 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
+/** Short TTL cache to avoid CoinGecko free-tier 429 on repeated OHLCV calls */
+const ohlcvCache = new Map();
+const OHLCV_CACHE_MS = 120_000;
+
 const ZEB = 'https://www.zebapi.com/pro/v1/market/';
 const GCK = 'https://api.coingecko.com/api/v3/';
 
@@ -50,31 +54,44 @@ const COIN_ID_MAP = {
   'usdt': 'tether',
 };
 
-// OHLCV via CoinGecko
+// OHLCV via CoinGecko (rate-limited upstream; we cache + serve stale on 429)
 router.get('/ohlcv/:coin', async (req, res) => {
+  const coin = req.params.coin.toLowerCase().replace('-inr', '').replace('/inr', '');
+  const coinId = COIN_ID_MAP[coin];
+  const days = req.query.days || 7;
+  const cacheKey = `${coin}:${days}`;
+
+  if (!coinId) {
+    return res.status(400).json({
+      error: `Unknown coin: ${coin}. Supported: ${Object.keys(COIN_ID_MAP).join(', ')}`
+    });
+  }
+
+  const now = Date.now();
+  const cached = ohlcvCache.get(cacheKey);
+  if (cached && now - cached.t < OHLCV_CACHE_MS) {
+    return res.json(cached.data);
+  }
+
   try {
-    const coin = req.params.coin.toLowerCase().replace('-inr', '').replace('/inr', '');
-    const coinId = COIN_ID_MAP[coin];
-
-    if (!coinId) {
-      return res.status(400).json({
-        error: `Unknown coin: ${coin}. Supported: ${Object.keys(COIN_ID_MAP).join(', ')}`
-      });
-    }
-
-    const days = req.query.days || 7;
     const { data } = await axios.get(
       `${GCK}coins/${coinId}/ohlc?vs_currency=inr&days=${days}`,
       { timeout: 8000 }
     );
 
-    res.json(
-      data.map(([time, open, high, low, close]) => ({
-        time: time / 1000,
-        open, high, low, close
-      }))
-    );
+    const mapped = data.map(([time, open, high, low, close]) => ({
+      time: time / 1000,
+      open,
+      high,
+      low,
+      close
+    }));
+    ohlcvCache.set(cacheKey, { t: now, data: mapped });
+    res.json(mapped);
   } catch (err) {
+    if (err.response?.status === 429 && cached) {
+      return res.json(cached.data);
+    }
     if (err.response?.status === 429) {
       return res.status(429).json({ error: 'CoinGecko rate limit. Wait 60s.' });
     }
