@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndoTrade AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">IndoTrade AI</div>
+            <nav class="nav-menu">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">Dashboard</a>
+                <a href="#equity" class="nav-item" data-tab="equity">Equity (NSE/BSE)</a>
+                <a href="#fo" class="nav-item" data-tab="fo">F&O Options</a>
+                <a href="#crypto" class="nav-item" data-tab="crypto">Crypto</a>
+                <a href="#mf" class="nav-item" data-tab="mf">Mutual Funds</a>
+                <a href="#ipo" class="nav-item" data-tab="ipo">IPOs</a>
+                <a href="#risk" class="nav-item" data-tab="risk">Risk Engine</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Status Bar -->
+            <header class="status-bar">
+                <div class="status-item nse-status">
+                    <span class="dot"></span> NSE: <span id="nse-market-status">Checking...</span>
+                </div>
+                <div class="status-item crypto-status">
+                    <span class="dot active"></span> Crypto: Open 24/7
+                </div>
+                <div class="status-item ist-clock" id="ist-clock">
+                    --:--:-- IST
+                </div>
+                <div class="status-item ai-status">
+                    <span class="dot active"></span> Groq Llama 3.3
+                </div>
+            </header>
+
+            <!-- Tabs Content -->
+            <div class="tab-content">
+                <!-- Dashboard Tab -->
+                <div id="tab-dashboard" class="tab-pane active">
+                    <!-- Metric Cards -->
+                    <div class="metrics-grid">
+                        <div class="metric-card" id="card-nifty">
+                            <div class="m-title">NIFTY 50</div>
+                            <div class="m-value skeleton-text"></div>
+                            <div class="m-change"></div>
+                        </div>
+                        <div class="metric-card" id="card-sensex">
+                            <div class="m-title">SENSEX</div>
+                            <div class="m-value skeleton-text"></div>
+                            <div class="m-change"></div>
+                        </div>
+                        <div class="metric-card" id="card-btc">
+                            <div class="m-title">BTC/INR</div>
+                            <div class="m-value skeleton-text"></div>
+                            <div class="m-change"></div>
+                        </div>
+                        <div class="metric-card" id="card-fng">
+                            <div class="m-title">FEAR & GREED</div>
+                            <div class="m-value skeleton-text"></div>
+                            <div class="m-change"></div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-main-grid">
+                        <!-- Left Col: Watchlist -->
+                        <div class="watchlist-panel">
+                            <h2>Live Watchlist</h2>
+                            <div class="table-container">
+                                <table id="watchlist-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Asset</th>
+                                            <th>Price (₹)</th>
+                                            <th>Change</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Right Col: AI Engine -->
+                        <div class="ai-engine-panel">
+                            <h2>AI Signal Engine</h2>
+                            <div class="ai-controls">
+                                <div class="input-group">
+                                    <label>Asset to Analyze</label>
+                                    <select id="ai-asset-select">
+                                        <!-- Populated via JS -->
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label>Capital Risk (₹) [Max 2%]</label>
+                                    <input type="number" id="ai-capital-input" value="100000" min="1000">
+                                </div>
+                                <button id="btn-generate-signal" class="btn-primary">Generate Signal</button>
+                                <div id="ai-cooldown-timer" class="cooldown-text"></div>
+                            </div>
+                            
+                            <div id="ai-signal-output" class="signal-card empty">
+                                <div class="placeholder-text">Select an asset and generate a signal to begin analysis.</div>
+                                <!-- Signal template rendered via JS -->
+                            </div>
+
+                            <div class="signal-history-toggle">
+                                <button id="btn-toggle-history" class="btn-secondary">View Signal History</button>
+                            </div>
+                            <div id="signal-history-panel" class="history-panel hidden">
+                                <h3>Recent Signals</h3>
+                                <div id="history-container"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Placeholders for other tabs -->
+                <div id="tab-equity" class="tab-pane"><h2>Equity Analysis</h2><p>Select assets from Dashboard to analyze.</p></div>
+                <div id="tab-fo" class="tab-pane"><h2 id="fo-expiry-warning">F&O Options Analysis</h2><div id="fo-info-container"></div></div>
+                <div id="tab-crypto" class="tab-pane"><h2>Crypto Analysis</h2><div id="crypto-global-container"></div></div>
+                <div id="tab-mf" class="tab-pane"><h2>Mutual Funds Watchlist</h2><div id="mf-container"></div></div>
+                <div id="tab-ipo" class="tab-pane"><h2>Recent & Upcoming IPOs</h2><div id="ipo-container"></div></div>
+                <div id="tab-risk" class="tab-pane"><h2>Risk Engine Defaults</h2><p>Risk per trade capped at 2% automatically via AI configuration.</p></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <footer class="legal-footer">
+        Algorithmic analysis only. Not registered with SEBI as an Investment Advisor. Past performance does not guarantee future results. Crypto: RBI advisory applies. F&O involves substantial risk. Verify all signals with a SEBI-registered advisor before trading.
+    </footer>
+
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/signals.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
