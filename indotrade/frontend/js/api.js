@@ -11,26 +11,41 @@ function ensureApiBase() {
   throw new Error('Set window.INDOTRADE_API_BASE in js/config.js to your backend Render URL.');
 }
 
-async function fetchJSON(url) {
-  ensureApiBase();
+function emitApiEvent(type, detail = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(type, { detail }));
+}
+
+async function parseJsonSafe(res) {
   try {
-    const ts = url.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`;
-    const res = await fetch(url + ts, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    throw error;
+  } catch (_) {
+    return null;
   }
+}
+
+async function fetchJSON(url, options) {
+  ensureApiBase();
+  const ts = url.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`;
+  const res = await fetch(url + ts, { cache: 'no-store', ...(options || {}) });
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    if (res.status === 429) emitApiEvent('indotrade:rate-limit', { status: 429 });
+    throw err;
+  }
+  emitApiEvent('indotrade:api-ok');
+  return await res.json();
 }
 
 const api = {
   equity: {
     quote: (symbol) => fetchJSON(`${API}/equity/quote/${symbol}`),
-    batch: (symbols) => {
-      ensureApiBase();
-      return fetch(`${API}/equity/batch`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbols}) }).then(r=>r.json());
-    }
+    batch: (symbols) => fetchJSON(`${API}/equity/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols })
+    })
   },
   crypto: {
     all: () => fetchJSON(`${API}/crypto/all`),
@@ -51,9 +66,11 @@ const api = {
         body: JSON.stringify({ marketData, assetType, capital })
       }).then(async r => {
         if (!r.ok) {
-          const err = await r.json();
-          throw new Error(err.error || 'AI Analysis Failed');
+          const payload = await parseJsonSafe(r);
+          if (r.status === 429) emitApiEvent('indotrade:rate-limit', { status: 429 });
+          throw new Error(payload?.error || 'AI Analysis Failed');
         }
+        emitApiEvent('indotrade:api-ok');
         return r.json();
       });
     }

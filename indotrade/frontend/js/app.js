@@ -12,15 +12,19 @@ function showToast(message, type = 'info') {
 // Refresh only APIs (not full page re-render) with stable intervals
 const REFRESH_INTERVAL_MS = {
   clock: 1000,
-  equity: 500,
-  crypto: 500,
-  tabs: 1000
+  equity: 1500,
+  crypto: 1500,
+  tabs: 10000
 };
 
 const refreshInFlight = {
   equity: false,
   crypto: false,
   tabs: false
+};
+
+const pollControl = {
+  cooldownUntil: 0
 };
 
 async function runLocked(key, task) {
@@ -31,6 +35,14 @@ async function runLocked(key, task) {
   } finally {
     refreshInFlight[key] = false;
   }
+}
+
+function isPollPaused() {
+  return Date.now() < pollControl.cooldownUntil;
+}
+
+function onRateLimit() {
+  pollControl.cooldownUntil = Date.now() + 15000;
 }
 
 // Time & Market Status
@@ -342,9 +354,11 @@ async function initApp() {
   document.getElementById('btn-toggle-history')?.addEventListener('click', () => {
     document.getElementById('signal-history-panel').classList.toggle('hidden');
   });
+  window.addEventListener('indotrade:rate-limit', onRateLimit);
 
   // Auto Refresh Logic
   setInterval(() => {
+    if (isPollPaused()) return;
     runLocked('equity', async () => {
       await updateEquityPrices();
       await fetchGlobals();
@@ -352,11 +366,13 @@ async function initApp() {
   }, REFRESH_INTERVAL_MS.equity);
   
   setInterval(() => {
+    if (isPollPaused()) return;
     runLocked('crypto', updateCryptoPrices);
   }, REFRESH_INTERVAL_MS.crypto);
 
   // Refresh secondary tab data
   setInterval(() => {
+    if (isPollPaused()) return;
     runLocked('tabs', renderAllTabData);
   }, REFRESH_INTERVAL_MS.tabs);
 }
