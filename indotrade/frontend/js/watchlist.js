@@ -169,17 +169,35 @@ function updateSortIndicators() {
 
 let WATCHLIST_ANALYZING = false;
 
+async function fetchWithTimeout(url, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now(), {
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('Timeout — server may be waking up. Try again.');
+    throw e;
+  }
+}
+
 async function analyzeWatchlistCrypto(coin) {
   if (WATCHLIST_ANALYZING) return;
   WATCHLIST_ANALYZING = true;
   const container = document.getElementById('watchlist-detail-container');
   if (!container) { WATCHLIST_ANALYZING = false; return; }
-  container.innerHTML = '<p class="placeholder-text">Analyzing crypto...</p>';
+  container.innerHTML = '<p class="placeholder-text">Analyzing crypto... (may take 15s on first load)</p>';
   try {
-    const analysis = await api.crypto.analyze(coin);
+    const analysis = await fetchWithTimeout(API + '/crypto/analyze/' + coin, 30000);
     container.innerHTML = renderCryptoAnalysisCard(analysis);
   } catch (e) {
-    container.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    container.innerHTML = '<p class="bear-text">Analysis failed: ' + e.message + '</p>';
   }
   WATCHLIST_ANALYZING = false;
 }
@@ -189,12 +207,12 @@ async function analyzeWatchlistEquity(symbol) {
   WATCHLIST_ANALYZING = true;
   const container = document.getElementById('watchlist-detail-container');
   if (!container) { WATCHLIST_ANALYZING = false; return; }
-  container.innerHTML = '<p class="placeholder-text">Analyzing equity...</p>';
+  container.innerHTML = '<p class="placeholder-text">Analyzing equity... (may take 15s on first load)</p>';
   try {
-    const analysis = await api.equity.analyze(symbol);
+    const analysis = await fetchWithTimeout(API + '/equity/analyze/' + symbol, 30000);
     container.innerHTML = renderEquityAnalysisCard(analysis);
   } catch (e) {
-    container.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    container.innerHTML = '<p class="bear-text">Analysis failed: ' + e.message + '</p>';
   }
   WATCHLIST_ANALYZING = false;
 }

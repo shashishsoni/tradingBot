@@ -74,6 +74,9 @@ async function renderWatchlist() {
   const select = document.getElementById('ai-asset-select');
   if (!tbody || !select) return;
 
+  // Show loading state immediately
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px;">Loading assets... (first load may take 30s)</td></tr>';
+
   // Fetch crypto pairs and unified signals in parallel
   await Promise.all([initCryptoPairs(), loadUnifiedSignals()]);
 
