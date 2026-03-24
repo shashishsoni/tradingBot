@@ -68,33 +68,208 @@ function analyzeWatchlistAsset(symbol, type) {
 }
 
 function renderSignal(s, container) {
-  container.className = `signal-card ${s.signal}`;
+  const signalClass = s.signal === 'BUY' ? 'bull' : s.signal === 'SELL' ? 'bear' : 'neutral';
+  const signalIcon = s.signal === 'BUY' ? '📈' : s.signal === 'SELL' ? '📉' : '➡️';
+  const convictionIcon = s.conviction === 'HIGH' ? '🔥' : s.conviction === 'MEDIUM' ? '⚡' : '💤';
+  
+  container.className = `signal-card modern ${signalClass}`;
   container.innerHTML = `
-    <div class="signal-header">
-      <div class="signal-badge ${s.signal}">${s.signal} — ${s.asset}</div>
-      <div class="sig-v">Conf: ${s.confidence}/10</div>
+    <!-- THE VERDICT -->
+    <div class="verdict-section">
+      <div class="verdict-header">
+        <div class="verdict-icon">${signalIcon}</div>
+        <div class="verdict-content">
+          <div class="verdict-label">THE VERDICT</div>
+          <div class="verdict-value ${signalClass}">${s.signal}</div>
+          <div class="verdict-asset">${s.asset}</div>
+        </div>
+        <div class="verdict-confidence">
+          <div class="conf-label">Confidence</div>
+          <div class="conf-value">${s.confidence}/10</div>
+          <div class="conf-bar-bg"><div class="conf-bar-fill ${signalClass}" style="width: ${s.confidence * 10}%"></div></div>
+        </div>
+      </div>
+      <div class="conviction-badge ${s.conviction?.toLowerCase()}">
+        ${convictionIcon} ${s.conviction || 'MEDIUM'} Conviction | Success Probability: ${s.probabilityOfSuccess || 'N/A'}
+      </div>
     </div>
-    <div class="confidence-bar-bg"><div class="confidence-bar-fill" style="width: ${s.confidence * 10}%"></div></div>
-    
-    <div class="signal-grid" style="margin-top:20px;">
-      <div class="sig-kv"><span class="sig-k">Timeframe</span><span class="sig-v">${s.timeframe || '-'}</span></div>
-      <div class="sig-kv"><span class="sig-k">Best Window</span><span class="sig-v">${s.bestWindow || '-'}</span></div>
-      <div class="sig-kv"><span class="sig-k">Entry Zone</span><span class="sig-v">₹${s.entryZone?.low || 0} - ₹${s.entryZone?.high || 0}</span></div>
-      <div class="sig-kv"><span class="sig-k">Stop Loss</span><span class="sig-v">₹${s.stopLoss || 0}</span></div>
-      <div class="sig-kv"><span class="sig-k">Target 1</span><span class="sig-v">₹${s.target1 || 0}</span></div>
-      <div class="sig-kv"><span class="sig-k">Target 2</span><span class="sig-v">₹${s.target2 || 0}</span></div>
-      <div class="sig-kv"><span class="sig-k">Risk/Reward</span><span class="sig-v">${s.riskReward || '-'}</span></div>
-      <div class="sig-kv"><span class="sig-k">Invalidation</span><span class="sig-v">₹${s.invalidation || 0}</span></div>
+
+    <!-- TRADE PARAMETERS -->
+    <div class="analysis-section">
+      <div class="section-title">
+        <span class="section-icon">🎯</span>
+        <span>TRADE PARAMETERS</span>
+      </div>
+      <div class="params-grid">
+        <div class="param-card">
+          <div class="param-label">Timeframe</div>
+          <div class="param-value">${s.timeframe || '-'}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Best Window</div>
+          <div class="param-value">${s.bestWindow || '-'}</div>
+        </div>
+        <div class="param-card entry">
+          <div class="param-label">Entry Zone</div>
+          <div class="param-value">₹${s.entryZone?.low || 0} - ₹${s.entryZone?.high || 0}</div>
+        </div>
+        <div class="param-card stop">
+          <div class="param-label">Stop Loss</div>
+          <div class="param-value bear-text">₹${s.stopLoss || 0}</div>
+        </div>
+        <div class="param-card target">
+          <div class="param-label">Target 1</div>
+          <div class="param-value bull-text">₹${s.target1 || 0}</div>
+        </div>
+        <div class="param-card target">
+          <div class="param-label">Target 2</div>
+          <div class="param-value bull-text">₹${s.target2 || 0}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Risk/Reward</div>
+          <div class="param-value">${s.riskReward || '-'}</div>
+        </div>
+        <div class="param-card invalidation">
+          <div class="param-label">Invalidation</div>
+          <div class="param-value bear-text">₹${s.invalidation || 0}</div>
+        </div>
+      </div>
     </div>
-    
-    <div class="confluences-list">
-      <div class="sig-k">Confluences (<span class="${s.confluences?.length >= 3 ? 'bull-text' : 'bear-text'}">${s.confluences?.length || 0}/3 req</span>)</div>
-      <ul>${(s.confluences || []).map(c => `<li>${c}</li>`).join('')}</ul>
+
+    <!-- WHY TO BUY / WHY TO AVOID -->
+    <div class="analysis-section">
+      <div class="section-title">
+        <span class="section-icon">💡</span>
+        <span>WHY TO ${s.signal === 'BUY' ? 'BUY' : s.signal === 'SELL' ? 'AVOID' : 'HOLD'} (The ${s.signal === 'BUY' ? 'Bull' : s.signal === 'SELL' ? 'Bear' : 'Neutral'} Case)</span>
+      </div>
+      <div class="factors-list">
+        ${(s.bullishFactors || []).map((f, i) => `
+          <div class="factor-item bull">
+            <span class="factor-number">${i + 1}</span>
+            <span class="factor-text">${f}</span>
+          </div>
+        `).join('')}
+        ${(s.bearishFactors || []).map((f, i) => `
+          <div class="factor-item bear">
+            <span class="factor-number">${i + 1}</span>
+            <span class="factor-text">${f}</span>
+          </div>
+        `).join('')}
+      </div>
     </div>
-    
-    ${s.riskWarnings?.length ? `<div class="warnings-list"><div class="sig-k">Warnings</div><ul>${s.riskWarnings.map(w => `<li class="bear-text">${w}</li>`).join('')}</ul></div>` : ''}
-    
-    <div class="signal-note">${s.positionNote || ''}</div>
+
+    <!-- CONFLUENCES -->
+    <div class="analysis-section">
+      <div class="section-title">
+        <span class="section-icon">🔗</span>
+        <span>CONFLUENCES (${s.confluences?.length || 0}/3 required)</span>
+      </div>
+      <div class="confluences-grid">
+        ${(s.confluences || []).map((c, i) => `
+          <div class="confluence-item">
+            <span class="confluence-check">✓</span>
+            <span class="confluence-text">${c}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- MACRO CONTEXT & POLICY IMPACT -->
+    ${s.macroContext?.length || s.policyImpact?.length ? `
+    <div class="analysis-section">
+      <div class="section-title">
+        <span class="section-icon">🏛️</span>
+        <span>MACRO CONTEXT & POLICY IMPACT</span>
+      </div>
+      <div class="context-list">
+        ${(s.macroContext || []).map(c => `
+          <div class="context-item">
+            <span class="context-icon">📊</span>
+            <span class="context-text">${c}</span>
+          </div>
+        `).join('')}
+        ${(s.policyImpact || []).map(p => `
+          <div class="context-item">
+            <span class="context-icon">📜</span>
+            <span class="context-text">${p}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- HISTORICAL RISK & CATALYST -->
+    ${s.historicalRisk?.length || s.catalyst?.length ? `
+    <div class="analysis-section">
+      <div class="section-title">
+        <span class="section-icon">⚠️</span>
+        <span>HISTORICAL RISK & CATALYST</span>
+      </div>
+      <div class="risk-catalyst-grid">
+        ${(s.historicalRisk || []).map(r => `
+          <div class="risk-item">
+            <span class="risk-icon">🔴</span>
+            <span class="risk-text">${r}</span>
+          </div>
+        `).join('')}
+        ${(s.catalyst || []).map(c => `
+          <div class="catalyst-item">
+            <span class="catalyst-icon">🚀</span>
+            <span class="catalyst-text">${c}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- RISK WARNINGS -->
+    ${s.riskWarnings?.length ? `
+    <div class="analysis-section warnings">
+      <div class="section-title">
+        <span class="section-icon">🚨</span>
+        <span>RISK WARNINGS</span>
+      </div>
+      <div class="warnings-list">
+        ${s.riskWarnings.map(w => `
+          <div class="warning-item">
+            <span class="warning-icon">⚠️</span>
+            <span class="warning-text">${w}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- THE CONDITIONAL TRIGGER -->
+    <div class="analysis-section trigger">
+      <div class="section-title">
+        <span class="section-icon">🎯</span>
+        <span>THE CONDITIONAL TRIGGER</span>
+      </div>
+      <div class="trigger-content">
+        <div class="trigger-text">${s.positionNote || 'Monitor price action and volume for confirmation.'}</div>
+      </div>
+    </div>
+
+    <!-- DATA SOURCES -->
+    ${s.dataSources?.length ? `
+    <div class="analysis-section sources">
+      <div class="section-title">
+        <span class="section-icon">📚</span>
+        <span>DATA SOURCES</span>
+      </div>
+      <div class="sources-list">
+        ${s.dataSources.map(ds => `
+          <div class="source-item">
+            <span class="source-icon">📊</span>
+            <span class="source-text">${ds}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- DISCLAIMER -->
+    <div class="disclaimer">
+      <span class="disclaimer-icon">⚖️</span>
+      <span>${s.disclaimer || 'Algorithmic analysis only. Not SEBI-registered advice.'}</span>
+    </div>
   `;
 }
 

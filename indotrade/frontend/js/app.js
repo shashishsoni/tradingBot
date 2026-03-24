@@ -1629,23 +1629,92 @@ async function loadRiskEngine() {
 
 function renderAITradePlanInline(s) {
   if (!s || s.signal === 'NO_SIGNAL') {
-    return '<div class="signal-card HOLD" style="margin-top:16px;"><div class="signal-badge HOLD">AI Trade Plan (Llama)</div><p class="muted" style="padding:8px 0;">No signal — insufficient confluences or neutral RSI zone.</p></div>';
+    return `<div class="signal-card HOLD modern" style="margin-top:16px;">
+      <div class="signal-header modern">
+        <div class="signal-badge HOLD modern">
+          <span class="badge-icon">🤖</span>
+          <span>AI Trade Plan (Llama)</span>
+        </div>
+      </div>
+      <div class="signal-body">
+        <div class="no-signal-message">
+          <div class="no-signal-icon">⏸️</div>
+          <p class="muted">No signal — insufficient confluences or neutral RSI zone.</p>
+        </div>
+      </div>
+    </div>`;
   }
   var cls = s.signal === 'BUY' ? 'BUY' : s.signal === 'SELL' ? 'SELL' : 'HOLD';
-  return '<div class="signal-card ' + cls + '" style="margin-top:16px;">' +
-    '<div class="signal-header"><div class="signal-badge ' + cls + '">AI Trade Plan: ' + s.signal + '</div><div class="sig-v">Conf: ' + (s.confidence || 0) + '/10</div></div>' +
-    '<div class="signal-grid" style="margin-top:12px;">' +
-    '<div class="sig-kv"><span class="sig-k">Timeframe</span><span class="sig-v">' + (s.timeframe || '-') + '</span></div>' +
-    '<div class="sig-kv"><span class="sig-k">Best Window</span><span class="sig-v">' + (s.bestWindow || '-') + '</span></div>' +
-    '<div class="sig-kv"><span class="sig-k">Entry Zone</span><span class="sig-v">₹' + (s.entryZone?.low || 0) + ' - ₹' + (s.entryZone?.high || 0) + '</span></div>' +
-    '<div class="sig-kv"><span class="sig-k">Stop Loss</span><span class="sig-v">₹' + (s.stopLoss || 0) + '</span></div>' +
-    '<div class="sig-kv"><span class="sig-k">Target 1</span><span class="sig-v">₹' + (s.target1 || 0) + '</span></div>' +
-    '<div class="sig-kv"><span class="sig-k">Target 2</span><span class="sig-v">₹' + (s.target2 || 0) + '</span></div>' +
-    '<div class="sig-kv"><span class="sig-k">Risk/Reward</span><span class="sig-v">' + (s.riskReward || '-') + '</span></div>' +
-    '</div>' +
-    (s.confluences && s.confluences.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Confluences</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.confluences.map(c => '<li>' + c + '</li>').join('') + '</ul></div>' : '') +
-    (s.riskWarnings && s.riskWarnings.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Warnings</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.riskWarnings.map(w => '<li class="bear-text">' + w + '</li>').join('') + '</ul></div>' : '') +
-    '</div>';
+  var signalIcon = s.signal === 'BUY' ? '📈' : s.signal === 'SELL' ? '📉' : '⏸️';
+  var confColor = s.confidence >= 7 ? 'bull-text' : s.confidence >= 4 ? 'muted' : 'bear-text';
+  
+  return `<div class="signal-card ${cls} modern" style="margin-top:16px;">
+    <div class="signal-header modern">
+      <div class="signal-badge ${cls} modern">
+        <span class="badge-icon">${signalIcon}</span>
+        <span>AI Trade Plan: ${s.signal}</span>
+      </div>
+      <div class="sig-v modern ${confColor}">
+        <span class="conf-label">Conf:</span>
+        <span class="conf-value">${s.confidence || 0}/10</span>
+      </div>
+    </div>
+    
+    <div class="signal-body">
+      <div class="signal-grid modern" style="margin-top:12px;">
+        <div class="sig-kv modern">
+          <span class="sig-k">⏱️ Timeframe</span>
+          <span class="sig-v">${s.timeframe || '-'}</span>
+        </div>
+        <div class="sig-kv modern">
+          <span class="sig-k">🕐 Best Window</span>
+          <span class="sig-v">${s.bestWindow || '-'}</span>
+        </div>
+        <div class="sig-kv modern entry-zone">
+          <span class="sig-k">📍 Entry Zone</span>
+          <span class="sig-v">₹${(s.entryZone?.low || 0).toLocaleString('en-IN')} - ₹${(s.entryZone?.high || 0).toLocaleString('en-IN')}</span>
+        </div>
+        <div class="sig-kv modern stop-loss">
+          <span class="sig-k">🛑 Stop Loss</span>
+          <span class="sig-v bear-text">₹${(s.stopLoss || 0).toLocaleString('en-IN')}</span>
+        </div>
+        <div class="sig-kv modern target">
+          <span class="sig-k">🎯 Target 1</span>
+          <span class="sig-v bull-text">₹${(s.target1 || 0).toLocaleString('en-IN')}</span>
+        </div>
+        <div class="sig-kv modern target">
+          <span class="sig-k">🎯 Target 2</span>
+          <span class="sig-v bull-text">₹${(s.target2 || 0).toLocaleString('en-IN')}</span>
+        </div>
+        <div class="sig-kv modern risk-reward">
+          <span class="sig-k">⚖️ Risk/Reward</span>
+          <span class="sig-v">${s.riskReward || '-'}</span>
+        </div>
+      </div>
+      
+      ${s.confluences && s.confluences.length > 0 ? `
+      <div class="confluences-section" style="margin-top:12px;">
+        <div class="section-title">
+          <span class="section-icon">✅</span>
+          <span>Confluences (${s.confluences.length})</span>
+        </div>
+        <ul class="confluences-list modern">
+          ${s.confluences.map(c => `<li><span class="confluence-bullet">✓</span>${c}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+      
+      ${s.riskWarnings && s.riskWarnings.length > 0 ? `
+      <div class="warnings-section" style="margin-top:8px;">
+        <div class="section-title warning">
+          <span class="section-icon">⚠️</span>
+          <span>Warnings</span>
+        </div>
+        <ul class="warnings-list modern">
+          ${s.riskWarnings.map(w => `<li class="bear-text"><span class="warning-bullet">⚠</span>${w}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+    </div>
+  </div>`;
 }
 
 function renderAIPlanGeneric(plan, type) {
