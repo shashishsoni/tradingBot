@@ -71,6 +71,9 @@ const api = {
   watchlist: {
     unified: () => fetchJSON(`${API}/watchlist/unified`)
   },
+  signals: {
+    scan: (type='all', limit=10) => fetchJSON(`${API}/signals/scan?type=${type}&limit=${limit}`)
+  },
   risk: {
     portfolio: (portfolio, capital) => fetchJSON(`${API}/risk/portfolio`, {
       method: 'POST',

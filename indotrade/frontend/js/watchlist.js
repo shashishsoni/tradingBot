@@ -41,7 +41,10 @@ function initWatchlist() {
   loadWatchlistData();
 
   // Auto-refresh every 5 seconds
-  WATCHLIST_REFRESH_INTERVAL = setInterval(loadWatchlistData, 5000);
+  WATCHLIST_REFRESH_INTERVAL = setInterval(loadWatchlistData, 1500);
+
+  // Run initial signal scan
+  runSignalScan();
 }
 
 async function loadWatchlistData() {
@@ -257,4 +260,67 @@ function renderEquityAnalysisCard(a) {
       <ul>${(a.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
     </div>
   </div>`;
+}
+
+async function runSignalScan() {
+  const btn = document.getElementById('btn-scan');
+  const status = document.getElementById('scan-status');
+  const container = document.getElementById('scan-results-container');
+  if (!container) return;
+
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Scanning...';
+
+  try {
+    const result = await api.signals.scan('all', 10);
+    renderScanResults(result);
+    if (status) status.textContent = '(' + result.totalScanned + ' assets scanned)';
+  } catch (e) {
+    if (status) status.textContent = 'Scan failed: ' + e.message;
+  }
+  if (btn) btn.disabled = false;
+}
+
+function renderScanResults(result) {
+  const container = document.getElementById('scan-results-container');
+  if (!container) return;
+
+  const buys = result.topBuys || [];
+  const sells = result.topSells || [];
+
+  let html = '';
+
+  if (buys.length > 0) {
+    html += '<div class="signal-card BUY" style="flex:1;min-width:300px;">' +
+      '<div class="signal-header"><div class="signal-badge BUY">TOP BUYS</div><div class="sig-v">' + buys.length + ' signals</div></div>' +
+      '<div style="margin-top:12px;">' +
+      buys.map(function(b) {
+        return '<div class="flex-row" style="padding:6px 0;border-bottom:1px solid var(--border);">' +
+          '<div><strong>' + b.name + '</strong><span class="type-badge ' + b.type + '" style="margin-left:6px;">' + (b.type === 'CRYPTO' ? 'CRYPTO' : 'EQ') + '</span></div>' +
+          '<div class="bull-text">' + b.signal + ' (' + (b.score > 0 ? '+' : '') + b.score + ')</div>' +
+          '<div class="sig-k">RSI ' + (b.rsi ? b.rsi.toFixed(0) : '-') + ' | ' + (b.trend || '-') + ' | ' + (b.macd || '-') + '</div>' +
+          '</div>';
+      }).join('') +
+      '</div></div>';
+  }
+
+  if (sells.length > 0) {
+    html += '<div class="signal-card SELL" style="flex:1;min-width:300px;">' +
+      '<div class="signal-header"><div class="signal-badge SELL">TOP SELLS</div><div class="sig-v">' + sells.length + ' signals</div></div>' +
+      '<div style="margin-top:12px;">' +
+      sells.map(function(s) {
+        return '<div class="flex-row" style="padding:6px 0;border-bottom:1px solid var(--border);">' +
+          '<div><strong>' + s.name + '</strong><span class="type-badge ' + s.type + '" style="margin-left:6px;">' + (s.type === 'CRYPTO' ? 'CRYPTO' : 'EQ') + '</span></div>' +
+          '<div class="bear-text">' + s.signal + ' (' + s.score + ')</div>' +
+          '<div class="sig-k">RSI ' + (s.rsi ? s.rsi.toFixed(0) : '-') + ' | ' + (s.trend || '-') + ' | ' + (s.macd || '-') + '</div>' +
+          '</div>';
+      }).join('') +
+      '</div></div>';
+  }
+
+  if (buys.length === 0 && sells.length === 0) {
+    html = '<p class="muted" style="padding:16px;">No strong signals found — market is neutral. Click "Scan Market" to refresh.</p>';
+  }
+
+  container.innerHTML = html;
 }

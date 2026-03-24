@@ -159,6 +159,15 @@
                         </table>
                     </div>
                     <div id="watchlist-detail-container"></div>
+
+                    <!-- Signal Scan Results -->
+                    <div id="scan-results-section" style="margin-top:24px;">
+                        <div class="flex-row" style="margin-bottom:12px;">
+                            <h3 style="margin:0;">AI Signal Scan <span id="scan-status" class="muted" style="font-size:12px;font-weight:400;"></span></h3>
+                            <button class="btn-action" onclick="runSignalScan()" id="btn-scan">Scan Market</button>
+                        </div>
+                        <div id="scan-results-container" class="signal-grid" style="gap:16px;"></div>
+                    </div>
                 </div>
 
                 <!-- Placeholders for other tabs -->
