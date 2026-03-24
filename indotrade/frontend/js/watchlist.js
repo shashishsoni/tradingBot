@@ -50,13 +50,17 @@ function initWatchlist() {
 async function loadWatchlistData() {
   try {
     const data = await api.watchlist.unified();
-    // Only update if new data has content — preserve old data on empty response
     const hasData = (data.crypto?.length > 0) || (data.equity?.length > 0);
     if (hasData) {
       WATCHLIST_DATA = data;
       updateWatchlistStats(data);
-      const searchVal = document.getElementById('watchlist-search')?.value?.toLowerCase() || '';
-      renderWatchlistTable(searchVal);
+      // Only re-render table if detail container is empty (no analysis showing)
+      const detailEl = document.getElementById('watchlist-detail-container');
+      const hasDetail = detailEl && detailEl.innerHTML.trim().length > 50;
+      if (!hasDetail) {
+        const searchVal = document.getElementById('watchlist-search')?.value?.toLowerCase() || '';
+        renderWatchlistTable(searchVal);
+      }
     }
 
     const el = document.getElementById('watchlist-global-updated');
@@ -359,5 +363,173 @@ function renderScanResults(result) {
     html = '<p class="muted" style="padding:16px;">No strong signals found — market is neutral. Click "Scan Market" to refresh.</p>';
   }
 
+  container.innerHTML = html;
+}
+
+// --- AI Trade Plan Integration ---
+
+async function analyzeWatchlistCrypto(coin) {
+  if (WATCHLIST_ANALYZING) return;
+  WATCHLIST_ANALYZING = true;
+  const container = document.getElementById('watchlist-detail-container');
+  if (!container) { WATCHLIST_ANALYZING = false; return; }
+  container.innerHTML = '<p class="placeholder-text">Quick Analysis + AI Trade Plan loading...</p>';
+  try {
+    // 1. Quick technical analysis (free, instant)
+    const analysis = await fetchWithTimeout(API + '/crypto/analyze/' + coin, 30000);
+    let html = renderCryptoAnalysisCard(analysis);
+    html += '<div id="ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Trade Plan...</div>';
+    container.innerHTML = html;
+    // 2. AI Trade Plan (uses Groq tokens)
+    try {
+      const pairKey = coin.toUpperCase() + '-INR';
+      const price = analysis.currentPrice || 0;
+      const ohlcv = analysis.ohlcv || [];
+      if (price > 0) {
+        const { signal } = await api.ai.analyze({ symbol: pairKey, price, ohlcv, globalStats: analysis.globalStats || {} }, 'CRYPTO', 100000);
+        const planEl = document.getElementById('ai-plan-loading');
+        if (planEl) planEl.outerHTML = renderAITradePlanCard(signal);
+      }
+    } catch (e) {
+      const planEl = document.getElementById('ai-plan-loading');
+      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Trade Plan unavailable: ' + e.message + '</p>';
+    }
+  } catch (e) {
+    container.innerHTML = '<p class="bear-text">Analysis failed: ' + e.message + '</p>';
+  }
+  WATCHLIST_ANALYZING = false;
+}
+
+async function analyzeWatchlistEquity(symbol) {
+  if (WATCHLIST_ANALYZING) return;
+  WATCHLIST_ANALYZING = true;
+  const container = document.getElementById('watchlist-detail-container');
+  if (!container) { WATCHLIST_ANALYZING = false; return; }
+  container.innerHTML = '<p class="placeholder-text">Quick Analysis + AI Trade Plan loading...</p>';
+  try {
+    // 1. Quick technical analysis (free, instant)
+    const analysis = await fetchWithTimeout(API + '/equity/analyze/' + symbol, 30000);
+    let html = renderEquityAnalysisCard(analysis);
+    html += '<div id="ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Trade Plan...</div>';
+    container.innerHTML = html;
+    // 2. AI Trade Plan (uses Groq tokens)
+    try {
+      const price = analysis.currentPrice || 0;
+      const ohlcv = analysis.ohlcv || [];
+      if (price > 0) {
+        const { signal } = await api.ai.analyze({ symbol, price, ohlcv }, 'EQUITY', 100000);
+        const planEl = document.getElementById('ai-plan-loading');
+        if (planEl) planEl.outerHTML = renderAITradePlanCard(signal);
+      }
+    } catch (e) {
+      const planEl = document.getElementById('ai-plan-loading');
+      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Trade Plan unavailable: ' + e.message + '</p>';
+    }
+  } catch (e) {
+    container.innerHTML = '<p class="bear-text">Analysis failed: ' + e.message + '</p>';
+  }
+  WATCHLIST_ANALYZING = false;
+}
+
+function renderAITradePlanCard(s) {
+  if (!s || s.signal === 'NO_SIGNAL') {
+    return '<div class="signal-card HOLD" style="margin-top:16px;"><div class="signal-header"><div class="signal-badge HOLD">AI Trade Plan (Llama)</div></div><p class="muted" style="padding:8px 0;">No signal generated — insufficient confluences or RSI in neutral zone.</p></div>';
+  }
+  var sigClass = s.signal === 'BUY' ? 'BUY' : s.signal === 'SELL' ? 'SELL' : 'HOLD';
+  return '<div class="signal-card ' + sigClass + '" style="margin-top:16px;">' +
+    '<div class="signal-header">' +
+    '<div class="signal-badge ' + sigClass + '">AI Trade Plan: ' + s.signal + '</div>' +
+    '<div class="sig-v">Conf: ' + (s.confidence || 0) + '/10</div>' +
+    '</div>' +
+    '<div class="signal-grid" style="margin-top:12px;">' +
+    '<div class="sig-kv"><span class="sig-k">Timeframe</span><span class="sig-v">' + (s.timeframe || '-') + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Best Window</span><span class="sig-v">' + (s.bestWindow || '-') + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Entry Zone</span><span class="sig-v">₹' + (s.entryZone?.low || 0) + ' - ₹' + (s.entryZone?.high || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Stop Loss</span><span class="sig-v">₹' + (s.stopLoss || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Target 1</span><span class="sig-v">₹' + (s.target1 || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Target 2</span><span class="sig-v">₹' + (s.target2 || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Risk/Reward</span><span class="sig-v">' + (s.riskReward || '-') + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Invalidation</span><span class="sig-v">₹' + (s.invalidation || 0) + '</span></div>' +
+    '</div>' +
+    (s.confluences && s.confluences.length > 0
+      ? '<div style="margin-top:8px;"><div class="sig-k">Confluences (' + s.confluences.length + '/3 req)</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+        s.confluences.map(function(c) { return '<li>' + c + '</li>'; }).join('') + '</ul></div>'
+      : '') +
+    (s.riskWarnings && s.riskWarnings.length > 0
+      ? '<div style="margin-top:8px;"><div class="sig-k">Warnings</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+        s.riskWarnings.map(function(w) { return '<li class="bear-text">' + w + '</li>'; }).join('') + '</ul></div>'
+      : '') +
+    (s.positionNote ? '<p class="muted" style="margin-top:8px;font-size:12px;">' + s.positionNote + '</p>' : '') +
+    '</div>';
+}
+
+async function runBatchAI() {
+  var btn = document.getElementById('btn-batch-ai');
+  var container = document.getElementById('batch-ai-results-container');
+  if (!container) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing... (30-60s)'; }
+  var assets = [];
+  try {
+    var scanResult = await api.signals.scan('all', 20);
+    assets = [].concat(
+      (scanResult.topBuys || []).map(function(a) { return { symbol: a.symbol, type: a.type }; }),
+      (scanResult.topSells || []).map(function(a) { return { symbol: a.symbol, type: a.type }; })
+    ).slice(0, 10);
+  } catch (e) {
+    container.innerHTML = '<p class="bear-text">Failed to scan assets: ' + e.message + '</p>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Full AI Analysis (Top 5)'; }
+    return;
+  }
+  if (assets.length === 0) {
+    container.innerHTML = '<p class="muted">No assets to analyze. Run Scan first.</p>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Full AI Analysis (Top 5)'; }
+    return;
+  }
+  try {
+    var result = await api.ai.batch(assets, 100000, 5);
+    renderBatchAIResults(result);
+  } catch (e) {
+    container.innerHTML = '<p class="bear-text">AI Analysis failed: ' + e.message + '</p>';
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Full AI Analysis (Top 5)'; }
+}
+
+function renderBatchAIResults(result) {
+  var container = document.getElementById('batch-ai-results-container');
+  if (!container) return;
+  var plans = result.detailedPlans || [];
+  if (plans.length === 0) {
+    container.innerHTML = '<p class="muted">No trade plans generated.</p>';
+    return;
+  }
+  var html = '<h3 style="margin:16px 0 12px;">AI Trade Plans (Top ' + plans.length + ' by Score)</h3>';
+  plans.forEach(function(p, i) {
+    var tp = p.tradePlan || {};
+    var conf = tp.confidence || p.score || 0;
+    var sig = tp.signal || p.signal || 'HOLD';
+    var sigClass = sig === 'BUY' || sig === 'STRONG BUY' ? 'BUY' : sig === 'SELL' || sig === 'STRONG SELL' ? 'SELL' : 'HOLD';
+    html += '<div class="signal-card ' + sigClass + '" style="margin-bottom:12px;">' +
+      '<div class="signal-header">' +
+      '<div class="signal-badge ' + sigClass + '">' + (i + 1) + '. ' + sig + ' — ' + p.name + ' <span class="type-badge ' + p.type + '">' + p.type + '</span></div>' +
+      '<div class="sig-v">Conf: ' + conf + '/10 | Score: ' + (p.score > 0 ? '+' : '') + p.score + '</div>' +
+      '</div>' +
+      '<div class="signal-grid" style="margin-top:12px;">' +
+      '<div class="sig-kv"><span class="sig-k">Price</span><span class="sig-v">₹' + (p.price || 0).toLocaleString('en-IN') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">RSI</span><span class="sig-v">' + (p.rsi ? p.rsi.toFixed(1) : '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Trend</span><span class="sig-v">' + (p.trend || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">MACD</span><span class="sig-v">' + (p.macd || '-') + '</span></div>';
+    if (tp.entryZone) {
+      html += '<div class="sig-kv"><span class="sig-k">Entry</span><span class="sig-v">₹' + (tp.entryZone.low || 0) + ' - ₹' + (tp.entryZone.high || 0) + '</span></div>' +
+        '<div class="sig-kv"><span class="sig-k">Stop Loss</span><span class="sig-v">₹' + (tp.stopLoss || 0) + '</span></div>' +
+        '<div class="sig-kv"><span class="sig-k">Target 1</span><span class="sig-v">₹' + (tp.target1 || 0) + '</span></div>' +
+        '<div class="sig-kv"><span class="sig-k">Risk/Reward</span><span class="sig-v">' + (tp.riskReward || '-') + '</span></div>';
+    }
+    html += '</div>';
+    if (tp.confluences && tp.confluences.length > 0) {
+      html += '<div style="margin-top:8px;"><div class="sig-k">Confluences</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+        tp.confluences.map(function(c) { return '<li>' + c + '</li>'; }).join('') + '</ul></div>';
+    }
+    html += '</div>';
+  });
   container.innerHTML = html;
 }
