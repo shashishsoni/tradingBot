@@ -12,9 +12,9 @@ function showToast(message, type = 'info') {
 // Refresh only APIs (not full page re-render) with stable intervals
 const REFRESH_INTERVAL_MS = {
   clock: 1000,
-  equity: 15000,
-  crypto: 5000,
-  tabs: 45000
+  equity: 500,
+  crypto: 500,
+  tabs: 1000
 };
 
 const refreshInFlight = {
@@ -345,12 +345,10 @@ async function initApp() {
 
   // Auto Refresh Logic
   setInterval(() => {
-    if (window.MARKET_OPEN) {
-      runLocked('equity', async () => {
-        await updateEquityPrices();
-        await fetchGlobals();
-      });
-    }
+    runLocked('equity', async () => {
+      await updateEquityPrices();
+      await fetchGlobals();
+    });
   }, REFRESH_INTERVAL_MS.equity);
   
   setInterval(() => {

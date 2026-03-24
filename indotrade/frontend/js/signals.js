@@ -6,6 +6,19 @@ const EQUITY_WATCHLIST = [
 
 const CRYPTO_WATCHLIST = ['BTC/INR','ETH/INR','SOL/INR','XRP/INR','BNB/INR','DOGE/INR'];
 
+function updateWatchlistLastUpdated() {
+  const el = document.getElementById('watchlist-last-updated');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  el.textContent = `(Last updated: ${time} IST)`;
+}
+
 async function renderWatchlist() {
   const tbody = document.querySelector('#watchlist-table tbody');
   const select = document.getElementById('ai-asset-select');
@@ -43,6 +56,7 @@ async function updateWatchlistPrices() {
 async function updateEquityPrices() {
   try {
     const eqData = await api.equity.batch(EQUITY_WATCHLIST);
+    let updated = false;
     eqData.forEach(d => {
       if (d.error) return;
       const row = document.getElementById(`row-${d.symbol}`);
@@ -58,8 +72,10 @@ async function updateEquityPrices() {
           row.querySelector('.change').innerHTML = '<span class="muted">—</span>';
         }
         row.querySelector('.change').classList.remove('skeleton-text');
+        updated = true;
       }
     });
+    if (updated) updateWatchlistLastUpdated();
   } catch (err) {
     showToast('Failed to fetch equity data', 'error');
   }
@@ -68,6 +84,7 @@ async function updateEquityPrices() {
 async function updateCryptoPrices() {
   try {
     const crypData = await api.crypto.all();
+    let updated = false;
     crypData.forEach(d => {
       if (d.error) return;
       const t = d.pair.replace('/', '');
@@ -79,6 +96,7 @@ async function updateCryptoPrices() {
         row.querySelector('.price').classList.remove('skeleton-text');
         row.querySelector('.change').innerHTML = `<span class="${chg >= 0 ? 'bull-text' : 'bear-text'}">${chg >= 0 ? '+' : ''}${chg}%</span>`;
         row.querySelector('.change').classList.remove('skeleton-text');
+        updated = true;
       
         if (d.pair === 'BTC/INR') {
           const btcCard = document.getElementById('card-btc');
@@ -90,6 +108,7 @@ async function updateCryptoPrices() {
         }
       }
     });
+    if (updated) updateWatchlistLastUpdated();
   } catch (err) {
     showToast('Failed to fetch watchlist data', 'error');
   }
