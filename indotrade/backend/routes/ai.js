@@ -167,4 +167,173 @@ Generate signal. Respond ONLY in valid JSON.
   }
 });
 
+// Batch AI Analysis — analyze all assets, rank by potential, detailed plan for top picks
+router.post('/batch', async (req, res) => {
+  const { assets, capital = 100000, topN = 5 } = req.body;
+  if (!assets || !Array.isArray(assets) || assets.length === 0) {
+    return res.status(400).json({ error: 'assets array required' });
+  }
+
+  try {
+    const SAPI = 'https://sapi.zebpay.com/api/v2';
+    const YF = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+    const results = [];
+
+    // Process each asset: fetch data + calculate indicators + score
+    for (const asset of assets) {
+      try {
+        let ohlcv = [];
+        let price = 0;
+        let changePct = 0;
+
+        if (asset.type === 'CRYPTO') {
+          const end = Math.floor(Date.now() / 1000);
+          const start = end - 90 * 24 * 60 * 60;
+          const [klinesRes, tickerRes] = await Promise.allSettled([
+            axios.get(`${SAPI}/market/klines`, { params: { symbol: asset.symbol, interval: '1h', startTime: start, endTime: end }, timeout: 8000 }),
+            axios.get(`${SAPI}/market/ticker`, { params: { symbol: asset.symbol }, timeout: 5000 })
+          ]);
+          if (klinesRes.status === 'fulfilled') {
+            const raw = klinesRes.value.data?.data || [];
+            ohlcv = raw.map(([time, open, high, low, close]) => ({
+              time: +time, open: +open, high: +high, low: +low, close: +close
+            })).filter(c => c.close > 0);
+          }
+          if (tickerRes.status === 'fulfilled') {
+            const t = tickerRes.value.data?.data;
+            price = parseFloat(t?.last) || 0;
+            changePct = parseFloat(t?.percentage) || 0;
+          }
+        } else {
+          const yfRes = await axios.get(`${YF}${asset.symbol}?interval=1d&range=6mo`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000
+          });
+          if (yfRes.data?.chart?.result?.[0]) {
+            const meta = yfRes.data.chart.result[0].meta;
+            const q = yfRes.data.chart.result[0].indicators.quote[0];
+            const ts = yfRes.data.chart.result[0].timestamp;
+            ohlcv = ts.map((t, i) => ({
+              time: t, open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume[i]
+            })).filter(c => c.close !== null);
+            price = meta.regularMarketPrice;
+            const prev = meta.previousClose;
+            changePct = prev > 0 ? ((price - prev) / prev * 100) : 0;
+          }
+        }
+
+        if (ohlcv.length >= 30 && price > 0) {
+          const indicators = calculateIndicators(ohlcv);
+          const score = scoreIndicators(indicators);
+          results.push({
+            symbol: asset.symbol,
+            type: asset.type,
+            name: asset.symbol.replace('.NS', '').replace('-INR', ''),
+            price, changePct: +changePct.toFixed(2),
+            rsi: indicators.rsi,
+            trend: indicators.trend,
+            macd: indicators.macdCross,
+            volume: indicators.volumeSignal,
+            bb: indicators.bbPosition,
+            obv: indicators.obvTrend,
+            score,
+            signal: score >= 2 ? 'STRONG BUY' : score >= 1 ? 'BUY' : score <= -2 ? 'STRONG SELL' : score <= -1 ? 'SELL' : 'HOLD',
+            indicators
+          });
+        }
+      } catch (_) {}
+    }
+
+    // Sort by absolute score (strongest signals first)
+    results.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+
+    // Send top N candidates to Groq for detailed trade plans
+    const topCandidates = results.slice(0, topN);
+    const detailedPlans = [];
+
+    for (const candidate of topCandidates) {
+      try {
+        const enriched = {
+          symbol: candidate.symbol,
+          price: candidate.price,
+          indicators: candidate.indicators,
+          sizing: positionSize(capital, candidate.price, candidate.indicators?.atr)
+        };
+
+        const signal = await callGroq(enriched, candidate.type, capital);
+        detailedPlans.push({
+          ...candidate,
+          tradePlan: signal,
+          planTokens: signal._tokens || 0
+        });
+      } catch (e) {
+        detailedPlans.push({
+          ...candidate,
+          tradePlan: { signal: candidate.signal, confidence: candidate.score >= 2 ? 7 : candidate.score >= 1 ? 5 : 3, error: e.message }
+        });
+      }
+    }
+
+    res.json({
+      ranked: results,
+      detailedPlans,
+      totalAnalyzed: results.length,
+      topN: detailedPlans.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+function scoreIndicators(ind) {
+  let score = 0;
+  if (ind.rsiSignal === 'OVERSOLD') score += 2;
+  else if (ind.rsiSignal === 'NEAR_OVERSOLD') score += 1;
+  else if (ind.rsiSignal === 'OVERBOUGHT') score -= 2;
+  else if (ind.rsiSignal === 'NEAR_OVERBOUGHT') score -= 1;
+  if (ind.macdCross === 'BULLISH') score += 2;
+  else if (ind.macdCross === 'BEARISH') score -= 2;
+  if (ind.trend === 'UPTREND') score += 1;
+  else if (ind.trend === 'DOWNTREND') score -= 1;
+  if (ind.volumeSignal === 'HIGH') score += 1;
+  else if (ind.volumeSignal === 'LOW') score -= 1;
+  if (ind.bbPosition === 'BELOW') score += 1;
+  else if (ind.bbPosition === 'ABOVE') score -= 1;
+  if (ind.obvTrend === 'RISING') score += 1;
+  else if (ind.obvTrend === 'FALLING') score -= 1;
+  return score;
+}
+
+async function callGroq(enriched, assetType, capital) {
+  const marketContext = assetType === 'CRYPTO'
+    ? 'CRYPTO market — use Fear & Greed and BTC dominance if available in data'
+    : 'EQUITY market — use NIFTY trend if available in data';
+
+  const userMsg = `
+ASSET TYPE: ${assetType}
+CURRENT PRICE: ${enriched.price}
+CAPITAL: ${capital}
+${marketContext}
+
+DATA: ${JSON.stringify(enriched, null, 2)}
+
+Generate trade plan. Respond ONLY in valid JSON.
+  `;
+
+  const { data } = await axios.post(GROQ, {
+    model: MODEL,
+    messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userMsg }],
+    temperature: 0.2,
+    max_tokens: 800,
+    response_format: { type: 'json_object' }
+  }, {
+    headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    timeout: 15000
+  });
+
+  const signal = JSON.parse(data.choices[0].message.content);
+  signal._tokens = data.usage?.total_tokens || 0;
+  return signal;
+}
+
 module.exports = router;

@@ -166,10 +166,14 @@
                     <div id="scan-results-section" style="margin-top:24px;">
                         <div class="flex-row" style="margin-bottom:12px;">
                             <h3 style="margin:0;">Signal Scanner <span class="muted" style="font-size:11px;font-weight:400;">(Technical Indicators)</span></h3>
-                            <p class="muted" style="font-size:12px;">Scans all assets with RSI, MACD, trend, volume. Free — no AI tokens.</p>
-                            <button class="btn-action" onclick="runSignalScan()" id="btn-scan">Scan All Assets</button>
+                            <div>
+                                <button class="btn-action" onclick="runSignalScan()" id="btn-scan">Scan All Assets</button>
+                                <button class="btn-primary" onclick="runBatchAI()" id="btn-batch-ai" style="margin-left:8px;">Full AI Analysis (Top 5)</button>
+                            </div>
                         </div>
+                        <p class="muted" style="font-size:12px;margin-bottom:12px;">Scanner: Free, instant. AI Analysis: Uses Groq tokens for detailed trade plans on top 5 assets.</p>
                         <div id="scan-results-container" class="signal-grid" style="gap:16px;"></div>
+                        <div id="batch-ai-results-container" style="margin-top:16px;"></div>
                     </div>
                 </div>
 

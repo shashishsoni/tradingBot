@@ -81,20 +81,20 @@ async function renderWatchlist() {
   await Promise.all([initCryptoPairs(), loadUnifiedSignals()]);
 
   tbody.innerHTML = EQUITY_WATCHLIST.map(sym => `
-    <tr id="row-${sym}">
+    <tr id="row-${sym}" class="watchlist-clickable" onclick="analyzeWatchlistAsset('${sym}', 'EQUITY')" style="cursor:pointer;">
       <td>${sym.replace('.NS', '').replace('^', '')}</td>
       <td class="price skeleton-text"></td>
       <td class="change skeleton-text"></td>
       <td class="signal-cell skeleton-text"></td>
-      <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym}', 'EQUITY')">Quick Check</button></td>
+      <td><button class="btn-action" onclick="event.stopPropagation();analyzeWatchlistAsset('${sym}', 'EQUITY')">AI Plan</button></td>
     </tr>
   `).join('') + CRYPTO_WATCHLIST.map(sym => `
-    <tr id="row-${sym}">
+    <tr id="row-${sym}" class="watchlist-clickable" onclick="analyzeWatchlistAsset('${sym.replace('-','/')}', 'CRYPTO')" style="cursor:pointer;">
       <td>${sym}</td>
       <td class="price skeleton-text"></td>
       <td class="change skeleton-text"></td>
       <td class="signal-cell skeleton-text"></td>
-      <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym.replace('-','/')}', 'CRYPTO')">Quick Check</button></td>
+      <td><button class="btn-action" onclick="event.stopPropagation();analyzeWatchlistAsset('${sym.replace('-','/')}', 'CRYPTO')">AI Plan</button></td>
     </tr>
   `).join('');
 

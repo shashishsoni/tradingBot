@@ -520,3 +520,10 @@ th.sortable { cursor: pointer; user-select: none; position: relative; padding-ri
 th.sortable::after { content: '⇅'; position: absolute; right: 4px; opacity: 0.3; font-size: 0.75rem; }
 th.sort-asc::after { content: '↑'; opacity: 1; color: var(--accent); }
 th.sort-desc::after { content: '↓'; opacity: 1; color: var(--accent); }
+
+/* Quick Utils */
+.flex-row { display: flex; justify-content: space-between; align-items: center; }
+
+/* Clickable Watchlist Rows */
+.watchlist-clickable { cursor: pointer; transition: background 0.15s; }
+.watchlist-clickable:hover { background: var(--surface2); }

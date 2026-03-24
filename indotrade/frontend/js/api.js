@@ -101,6 +101,21 @@ const api = {
         emitApiEvent('indotrade:api-ok');
         return r.json();
       });
+    },
+    batch: (assets, capital, topN) => {
+      ensureApiBase();
+      return fetch(`${API}/ai/batch`, {
+        method: 'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ assets, capital: capital || 100000, topN: topN || 5 })
+      }).then(async r => {
+        if (!r.ok) {
+          const payload = await parseJsonSafe(r);
+          if (r.status === 429) emitApiEvent('indotrade:rate-limit', { status: 429 });
+          throw new Error(payload?.error || 'Batch AI Analysis Failed');
+        }
+        emitApiEvent('indotrade:api-ok');
+        return r.json();
+      });
     }
   }
 };
