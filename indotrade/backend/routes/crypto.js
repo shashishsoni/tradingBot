@@ -44,16 +44,27 @@ router.get('/pairs', async (req, res) => {
 // GET /all — live tickers for ALL INR pairs (WebSocket real-time + REST fallback)
 router.get('/all', async (req, res) => {
   try {
-    const [tickersRes, pairs] = await Promise.all([
-      axios.get(`${SAPI}/market/allTickers`, { timeout: 8000 }),
+    const [tickersRes, pairsRes] = await Promise.allSettled([
+      axios.get(`${SAPI}/market/allTickers`, { timeout: 10000 }),
       getInrPairs()
     ]);
+
+    // Use pairs from cache or fetch result, with fallback to common pairs
+    let pairs = pairsRes.status === 'fulfilled' ? pairsRes.value : [];
+    if (pairs.length === 0) {
+      pairs = ['BTC-INR','ETH-INR','SOL-INR','XRP-INR','BNB-INR','DOGE-INR','ADA-INR','SHIB-INR'].map(s => ({ symbol: s }));
+    }
+
     // Subscribe all pairs to WebSocket for real-time updates
     tickerWs.subscribeAll(pairs.map(p => p.symbol));
     // Wait briefly for initial WebSocket data to arrive
     await new Promise(r => setTimeout(r, 800));
 
-    const allTickers = tickersRes.data?.data || [];
+    if (tickersRes.status !== 'fulfilled') {
+      return res.status(502).json({ error: 'ZebPay API unavailable' });
+    }
+
+    const allTickers = tickersRes.value.data?.data || [];
     const inrPairSet = new Set(pairs.map(p => p.symbol));
     // Build tick size lookup for price precision
     const tickMap = {};

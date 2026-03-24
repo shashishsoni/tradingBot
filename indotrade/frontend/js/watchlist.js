@@ -41,7 +41,7 @@ function initWatchlist() {
   loadWatchlistData();
 
   // Auto-refresh every 5 seconds
-  WATCHLIST_REFRESH_INTERVAL = setInterval(loadWatchlistData, 1500);
+  WATCHLIST_REFRESH_INTERVAL = setInterval(loadWatchlistData, 10000);
 
   // Run initial signal scan
   runSignalScan();
@@ -50,10 +50,14 @@ function initWatchlist() {
 async function loadWatchlistData() {
   try {
     const data = await api.watchlist.unified();
-    WATCHLIST_DATA = data;
-    updateWatchlistStats(data);
-    const searchVal = document.getElementById('watchlist-search')?.value?.toLowerCase() || '';
-    renderWatchlistTable(searchVal);
+    // Only update if new data has content — preserve old data on empty response
+    const hasData = (data.crypto?.length > 0) || (data.equity?.length > 0);
+    if (hasData) {
+      WATCHLIST_DATA = data;
+      updateWatchlistStats(data);
+      const searchVal = document.getElementById('watchlist-search')?.value?.toLowerCase() || '';
+      renderWatchlistTable(searchVal);
+    }
 
     const el = document.getElementById('watchlist-global-updated');
     if (el) {

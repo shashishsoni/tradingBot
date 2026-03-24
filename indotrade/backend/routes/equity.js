@@ -38,28 +38,39 @@ router.get('/quote/:symbol', async (req, res) => {
 
 router.post('/batch', async (req, res) => {
   const { symbols } = req.body;
-  const results = await Promise.allSettled(symbols.map(s =>
-    axios.get(`${YF}${s}?interval=5m&range=1d`, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 6000 })
-  ));
+  // Process in batches of 10 to avoid overwhelming Yahoo Finance on shared IPs
+  const BATCH_SIZE = 10;
+  const results = [];
+  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+    const batch = symbols.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.allSettled(batch.map(s =>
+      axios.get(`${YF}${s}?interval=5m&range=1d`, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 })
+    ));
+    results.push(...batchResults);
+    // Small delay between batches to avoid rate limiting
+    if (i + BATCH_SIZE < symbols.length) await new Promise(r => setTimeout(r, 200));
+  }
   res.json(results.map((r, i) => {
     if (r.status === 'rejected') return { symbol: symbols[i], error: true };
-    const m = r.value.data.chart.result[0].meta;
-    const price = Number(m.regularMarketPrice);
-    const prev = Number(m.previousClose);
-    const rawPct = Number(m.regularMarketChangePercent);
-    const hasValidPrev = Number.isFinite(prev) && prev !== 0;
-    const computedPct = hasValidPrev && Number.isFinite(price)
-      ? ((price - prev) / prev) * 100
-      : null;
-    const changePct = Number.isFinite(rawPct)
-      ? +rawPct.toFixed(2)
-      : (computedPct !== null ? +computedPct.toFixed(2) : null);
-    return {
-      symbol: symbols[i],
-      price: Number.isFinite(price) ? price : null,
-      changePct,
-      volume: m.regularMarketVolume ?? null
-    };
+    try {
+      const m = r.value.data.chart.result[0].meta;
+      const price = Number(m.regularMarketPrice);
+      const prev = Number(m.previousClose);
+      const rawPct = Number(m.regularMarketChangePercent);
+      const hasValidPrev = Number.isFinite(prev) && prev !== 0;
+      const computedPct = hasValidPrev && Number.isFinite(price)
+        ? ((price - prev) / prev) * 100
+        : null;
+      const changePct = Number.isFinite(rawPct)
+        ? +rawPct.toFixed(2)
+        : (computedPct !== null ? +computedPct.toFixed(2) : null);
+      return {
+        symbol: symbols[i],
+        price: Number.isFinite(price) ? price : null,
+        changePct,
+        volume: m.regularMarketVolume ?? null
+      };
+    } catch (_) { return { symbol: symbols[i], error: true }; }
   }));
 });
 
