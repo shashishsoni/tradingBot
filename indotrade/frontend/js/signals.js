@@ -75,10 +75,10 @@ async function renderWatchlist() {
   if (!tbody || !select) return;
 
   // Show loading state immediately
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px;">Loading assets... (first load may take 30s)</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px;">Loading assets... (first load may take 30s on Render free tier)</td></tr>';
 
-  // Fetch crypto pairs and unified signals in parallel
-  await Promise.all([initCryptoPairs(), loadUnifiedSignals()]);
+  // Fetch crypto pairs and unified signals in parallel — each wrapped to prevent one failure from breaking everything
+  await Promise.allSettled([initCryptoPairs(), loadUnifiedSignals()]);
 
   tbody.innerHTML = EQUITY_WATCHLIST.map(sym => `
     <tr id="row-${sym}" class="watchlist-clickable" onclick="analyzeWatchlistAsset('${sym}', 'EQUITY')" style="cursor:pointer;">

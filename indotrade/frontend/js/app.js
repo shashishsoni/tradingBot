@@ -821,12 +821,12 @@ async function initApp() {
   setInterval(updateClock, REFRESH_INTERVAL_MS.clock);
   initTabs();
 
-  // Watchlist & Global setup
-  await renderWatchlist();
-  fetchGlobals();
-  renderHistory();
-  renderAllTabData();
-  initWatchlist();
+  // Watchlist & Global setup — each wrapped in try/catch so one failure doesn't break everything
+  try { await renderWatchlist(); } catch (e) { console.error('renderWatchlist failed:', e); }
+  try { fetchGlobals(); } catch (e) { console.error('fetchGlobals failed:', e); }
+  try { renderHistory(); } catch (e) {}
+  try { renderAllTabData(); } catch (e) { console.error('renderAllTabData failed:', e); }
+  try { initWatchlist(); } catch (e) { console.error('initWatchlist failed:', e); }
 
   // Event Listeners
   document.getElementById('btn-generate-signal')?.addEventListener('click', generateSignal);
