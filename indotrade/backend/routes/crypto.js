@@ -93,8 +93,9 @@ router.get('/ohlcv/:coin', async (req, res) => {
     const symbol = `${coin}-INR`;
     const days = parseInt(req.query.days) || 7;
     const interval = days <= 1 ? '5m' : days <= 7 ? '1h' : days <= 30 ? '4h' : '1d';
-    const endTime = Date.now();
-    const startTime = endTime - days * 24 * 60 * 60 * 1000;
+    // ZebPay klines expects seconds, not milliseconds
+    const endTime = Math.floor(Date.now() / 1000);
+    const startTime = endTime - days * 24 * 60 * 60;
 
     const { data } = await axios.get(`${SAPI}/market/klines`, {
       params: { symbol, interval, startTime, endTime },
@@ -126,8 +127,9 @@ router.get('/analyze/:coin', async (req, res) => {
     const symbol = `${coin}-INR`;
 
     // Fetch all data in parallel — ZebPay klines + CoinGecko global context
-    const endTime = Date.now();
-    const startTime30d = endTime - 30 * 24 * 60 * 60 * 1000;
+    // ZebPay klines expects seconds, not milliseconds
+    const endTime = Math.floor(Date.now() / 1000);
+    const startTime30d = endTime - 30 * 24 * 60 * 60;
 
     const [klinesRes, tickerRes, coinGeckoRes, globalRes, fgRes] = await Promise.allSettled([
       axios.get(`${SAPI}/market/klines`, { params: { symbol, interval: '4h', startTime: startTime30d, endTime }, timeout: 10000 }),

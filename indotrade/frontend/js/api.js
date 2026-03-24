@@ -68,6 +68,9 @@ const api = {
     info: () => fetchJSON(`${API}/fo/info`),
     analyze: (symbol) => fetchJSON(`${API}/fo/analyze/${symbol}`)
   },
+  watchlist: {
+    unified: () => fetchJSON(`${API}/watchlist/unified`)
+  },
   risk: {
     portfolio: (portfolio, capital) => fetchJSON(`${API}/risk/portfolio`, {
       method: 'POST',

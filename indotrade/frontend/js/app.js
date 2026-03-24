@@ -826,6 +826,7 @@ async function initApp() {
   fetchGlobals();
   renderHistory();
   renderAllTabData();
+  initWatchlist();
 
   // Event Listeners
   document.getElementById('btn-generate-signal')?.addEventListener('click', generateSignal);

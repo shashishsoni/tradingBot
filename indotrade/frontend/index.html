@@ -15,6 +15,7 @@
             <div class="logo">IndoTrade AI</div>
             <nav class="nav-menu">
                 <a href="#dashboard" class="nav-item active" data-tab="dashboard">Dashboard</a>
+                <a href="#watchlist" class="nav-item" data-tab="watchlist">Watchlist</a>
                 <a href="#equity" class="nav-item" data-tab="equity">Equity (NSE/BSE)</a>
                 <a href="#fo" class="nav-item" data-tab="fo">F&O Options</a>
                 <a href="#crypto" class="nav-item" data-tab="crypto">Crypto</a>
@@ -125,6 +126,41 @@
                     </div>
                 </div>
 
+                <!-- Unified Watchlist Tab -->
+                <div id="tab-watchlist" class="tab-pane">
+                    <div class="watchlist-header">
+                        <h2>Live Market Watchlist <span id="watchlist-global-updated" class="muted" style="font-size:12px;font-weight:400;margin-left:8px;"></span></h2>
+                        <div class="watchlist-controls">
+                            <input type="text" id="watchlist-search" placeholder="Search assets..." class="watchlist-search-input">
+                            <div class="watchlist-filters">
+                                <button class="filter-btn active" data-filter="ALL">All</button>
+                                <button class="filter-btn" data-filter="CRYPTO">Crypto</button>
+                                <button class="filter-btn" data-filter="EQUITY">Equity</button>
+                                <button class="filter-btn" data-filter="BUY">Buy Signals</button>
+                                <button class="filter-btn" data-filter="SELL">Sell Signals</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="watchlist-stats" id="watchlist-stats"></div>
+                    <div class="table-container watchlist-table-container">
+                        <table id="watchlist-global-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-sort="type">Type</th>
+                                    <th class="sortable" data-sort="name">Asset</th>
+                                    <th class="sortable" data-sort="price">Price (₹)</th>
+                                    <th class="sortable" data-sort="changePct">Change</th>
+                                    <th class="sortable" data-sort="volume">Volume</th>
+                                    <th class="sortable" data-sort="recommendation">Signal</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="watchlist-detail-container"></div>
+                </div>
+
                 <!-- Placeholders for other tabs -->
                 <div id="tab-equity" class="tab-pane"><h2>Equity Analysis</h2><p>Select assets from Dashboard to analyze.</p></div>
                 <div id="tab-fo" class="tab-pane"><h2 id="fo-expiry-warning">F&O Options Analysis</h2><div id="fo-info-container"></div></div>
@@ -147,6 +183,7 @@
     <script src="js/charts.js"></script>
     <script src="js/signals.js"></script>
     <script src="js/ai.js"></script>
+    <script src="js/watchlist.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
