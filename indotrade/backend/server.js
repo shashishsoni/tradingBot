@@ -7,6 +7,7 @@ const tickerWs = require('./services/tickerWs');
 const { assessPortfolioRisk, calculatePositionRisk } = require('./utils/riskEngine');
 
 const app = express();
+app.set('trust proxy', 1); // Trust Render's proxy for rate limiting
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
@@ -17,6 +18,7 @@ app.use(
     max: 300,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false }, // Disable X-Forwarded-For validation (Render proxy)
   })
 );
 
