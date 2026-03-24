@@ -164,9 +164,13 @@ function updateSortIndicators() {
   });
 }
 
+let WATCHLIST_ANALYZING = false;
+
 async function analyzeWatchlistCrypto(coin) {
+  if (WATCHLIST_ANALYZING) return;
+  WATCHLIST_ANALYZING = true;
   const container = document.getElementById('watchlist-detail-container');
-  if (!container) return;
+  if (!container) { WATCHLIST_ANALYZING = false; return; }
   container.innerHTML = '<p class="placeholder-text">Analyzing crypto...</p>';
   try {
     const analysis = await api.crypto.analyze(coin);
@@ -174,11 +178,14 @@ async function analyzeWatchlistCrypto(coin) {
   } catch (e) {
     container.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
   }
+  WATCHLIST_ANALYZING = false;
 }
 
 async function analyzeWatchlistEquity(symbol) {
+  if (WATCHLIST_ANALYZING) return;
+  WATCHLIST_ANALYZING = true;
   const container = document.getElementById('watchlist-detail-container');
-  if (!container) return;
+  if (!container) { WATCHLIST_ANALYZING = false; return; }
   container.innerHTML = '<p class="placeholder-text">Analyzing equity...</p>';
   try {
     const analysis = await api.equity.analyze(symbol);
@@ -186,6 +193,7 @@ async function analyzeWatchlistEquity(symbol) {
   } catch (e) {
     container.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
   }
+  WATCHLIST_ANALYZING = false;
 }
 
 function renderCryptoAnalysisCard(a) {

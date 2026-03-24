@@ -61,7 +61,7 @@ function calculateIndicators(ohlcv) {
     ema20: e20[e20.length-1], ema50: e50[e50.length-1],
     ema200: e200 ? e200[e200.length-1] : null,
     rsi: curRSI,
-    rsiSignal: curRSI > 70 ? 'OVERBOUGHT' : curRSI < 30 ? 'OVERSOLD' : 'NEUTRAL',
+    rsiSignal: curRSI > 70 ? 'OVERBOUGHT' : curRSI > 65 ? 'NEAR_OVERBOUGHT' : curRSI < 30 ? 'OVERSOLD' : curRSI < 35 ? 'NEAR_OVERSOLD' : 'NEUTRAL',
     macdHistogram: curHist,
     macdCross: prevHist < 0 && curHist > 0 ? 'BULLISH' : prevHist > 0 && curHist < 0 ? 'BEARISH' : 'NONE',
     atr: atrVal, bb: bbVals,

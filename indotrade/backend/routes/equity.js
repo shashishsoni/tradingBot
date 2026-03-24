@@ -124,10 +124,18 @@ router.get('/analyze/:symbol', async (req, res) => {
       if (indicators.rsiSignal === 'OVERSOLD') {
         reasons.push(`RSI ${indicators.rsi} — oversold, potential reversal`);
         recommendation = 'BUY';
+        confidence += 2;
+      } else if (indicators.rsiSignal === 'NEAR_OVERSOLD') {
+        reasons.push(`RSI ${indicators.rsi} — approaching oversold zone, watch for reversal`);
+        if (recommendation !== 'SELL') recommendation = 'BUY';
         confidence += 1;
       } else if (indicators.rsiSignal === 'OVERBOUGHT') {
         reasons.push(`RSI ${indicators.rsi} — overbought, caution`);
         recommendation = 'SELL';
+        confidence -= 2;
+      } else if (indicators.rsiSignal === 'NEAR_OVERBOUGHT') {
+        reasons.push(`RSI ${indicators.rsi} — approaching overbought zone, consider taking profits`);
+        if (recommendation !== 'BUY') recommendation = 'SELL';
         confidence -= 1;
       }
       
@@ -163,12 +171,16 @@ router.get('/analyze/:symbol', async (req, res) => {
     
     confidence = Math.max(1, Math.min(10, confidence));
     
+    const prev = Number(meta.previousClose);
+    const hasPrev = Number.isFinite(prev) && prev > 0;
+    const changePctVal = hasPrev ? +((currentPrice - prev) / prev * 100).toFixed(2) : 0;
+
     res.json({
       symbol: ticker,
       currentPrice,
-      previousClose: meta.previousClose,
-      change: +(currentPrice - meta.previousClose).toFixed(2),
-      changePct: +((currentPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2),
+      previousClose: prev,
+      change: hasPrev ? +(currentPrice - prev).toFixed(2) : 0,
+      changePct: changePctVal,
       volume: meta.regularMarketVolume,
       dayHigh: meta.regularMarketDayHigh,
       dayLow: meta.regularMarketDayLow,

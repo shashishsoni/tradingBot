@@ -271,9 +271,17 @@ router.get('/analyze/:coin', async (req, res) => {
       if (indicators.rsiSignal === 'OVERSOLD') {
         reasons.push(`RSI ${indicators.rsi} — oversold`);
         if (recommendation !== 'SELL') recommendation = 'BUY';
+        confidence += 2;
+      } else if (indicators.rsiSignal === 'NEAR_OVERSOLD') {
+        reasons.push(`RSI ${indicators.rsi} — approaching oversold zone`);
+        if (recommendation !== 'SELL') recommendation = 'BUY';
         confidence += 1;
       } else if (indicators.rsiSignal === 'OVERBOUGHT') {
         reasons.push(`RSI ${indicators.rsi} — overbought`);
+        if (recommendation !== 'BUY') recommendation = 'SELL';
+        confidence -= 2;
+      } else if (indicators.rsiSignal === 'NEAR_OVERBOUGHT') {
+        reasons.push(`RSI ${indicators.rsi} — approaching overbought zone`);
         if (recommendation !== 'BUY') recommendation = 'SELL';
         confidence -= 1;
       }
