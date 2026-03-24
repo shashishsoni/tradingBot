@@ -18,13 +18,18 @@ async function generateSignal() {
       mData = await api.equity.quote(asset);
     } else {
       const [base] = asset.split('/');
-      const [quote, ohlcv, globalStats] = await Promise.all([
-        // Assuming Zebpay format or passing symbol for generic parsing
-        fetch(`${API}/crypto/all`).then(r=>r.json()).then(res => res.find(i => i.pair === asset)),
-        api.crypto.ohlcv(base.toLowerCase()), // simplistic mapping for coingecko
+      const pairKey = asset.replace('/', '-'); // Convert BTC/INR → BTC-INR for API matching
+      const [quote, ohlcv, globalStats] = await Promise.allSettled([
+        fetch(`${API}/crypto/all`).then(r=>r.json()).then(res => res.find(i => i.pair === pairKey)),
+        api.crypto.ohlcv(base.toLowerCase()),
         api.crypto.global()
       ]);
-      mData = { symbol: asset, price: parseFloat(quote?.buy || 0), ohlcv, globalStats };
+      const quoteData = quote.status === 'fulfilled' ? quote.value : null;
+      const ohlcvData = ohlcv.status === 'fulfilled' ? ohlcv.value : [];
+      const globalData = globalStats.status === 'fulfilled' ? globalStats.value : {};
+      const price = parseFloat(quoteData?.market || quoteData?.buy) || 0;
+      if (price === 0) throw new Error('Could not fetch price for ' + pairKey);
+      mData = { symbol: pairKey, price, ohlcv: ohlcvData, globalStats: globalData };
     }
 
     const { signal } = await api.ai.analyze(mData, type, capital);

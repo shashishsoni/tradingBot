@@ -153,7 +153,7 @@ function renderWatchlistTable(searchTerm = '') {
       <td class="${pctClass}">${pctStr}</td>
       <td class="muted">${volStr}</td>
       <td><span class="signal-mini ${recClass}">${a.recommendation}</span></td>
-      <td><button class="btn-action" onclick="${analyzeFn}">Analyze</button></td>
+      <td><button class="btn-action" onclick="${analyzeFn}">Quick Check</button></td>
     </tr>`;
   }).join('');
 
@@ -291,7 +291,7 @@ async function runSignalScan() {
   if (!container) return;
 
   if (btn) btn.disabled = true;
-  if (status) status.textContent = 'Scanning... (may take 30s on first load)';
+  if (status) status.textContent = 'Scanning... (may take 15s)';
 
   try {
     // Add timeout for cold starts

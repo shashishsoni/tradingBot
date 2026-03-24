@@ -93,9 +93,10 @@
                             </div>
                         </div>
 
-                        <!-- Right Col: AI Engine -->
-                        <div class="ai-engine-panel">
-                            <h2>AI Signal Engine</h2>
+                        <!-- Right Col: AI Trade Plan -->
+                        <div class="ai-panel">
+                            <h2>AI Trade Plan <span class="muted" style="font-size:11px;font-weight:400;">(Llama 3.3 via Groq)</span></h2>
+                            <p class="muted" style="font-size:12px;margin-bottom:12px;">Detailed entry/exit plan with stop loss, targets, and risk/reward. Uses AI tokens.</p>
                             <div class="ai-controls">
                                 <div class="input-group">
                                     <label>Asset to Analyze</label>
@@ -107,7 +108,7 @@
                                     <label>Capital Risk (₹) [Max 2%]</label>
                                     <input type="number" id="ai-capital-input" value="100000" min="1000">
                                 </div>
-                                <button id="btn-generate-signal" class="btn-primary">Generate Signal</button>
+                                <button id="btn-generate-signal" class="btn-primary">Generate Trade Plan</button>
                                 <div id="ai-cooldown-timer" class="cooldown-text"></div>
                             </div>
                             
@@ -117,7 +118,7 @@
                             </div>
 
                             <div class="signal-history-toggle">
-                                <button id="btn-toggle-history" class="btn-secondary">View Signal History</button>
+                                <button id="btn-toggle-history" class="btn-secondary">View Trade History</button>
                             </div>
                             <div id="signal-history-panel" class="history-panel hidden">
                                 <h3>Recent Signals</h3>
@@ -164,8 +165,9 @@
                     <!-- Signal Scan Results -->
                     <div id="scan-results-section" style="margin-top:24px;">
                         <div class="flex-row" style="margin-bottom:12px;">
-                            <h3 style="margin:0;">AI Signal Scan <span id="scan-status" class="muted" style="font-size:12px;font-weight:400;"></span></h3>
-                            <button class="btn-action" onclick="runSignalScan()" id="btn-scan">Scan Market</button>
+                            <h3 style="margin:0;">Signal Scanner <span class="muted" style="font-size:11px;font-weight:400;">(Technical Indicators)</span></h3>
+                            <p class="muted" style="font-size:12px;">Scans all assets with RSI, MACD, trend, volume. Free — no AI tokens.</p>
+                            <button class="btn-action" onclick="runSignalScan()" id="btn-scan">Scan All Assets</button>
                         </div>
                         <div id="scan-results-container" class="signal-grid" style="gap:16px;"></div>
                     </div>

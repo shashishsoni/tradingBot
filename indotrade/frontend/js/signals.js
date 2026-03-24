@@ -86,7 +86,7 @@ async function renderWatchlist() {
       <td class="price skeleton-text"></td>
       <td class="change skeleton-text"></td>
       <td class="signal-cell skeleton-text"></td>
-      <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym}', 'EQUITY')">Analyze</button></td>
+      <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym}', 'EQUITY')">Quick Check</button></td>
     </tr>
   `).join('') + CRYPTO_WATCHLIST.map(sym => `
     <tr id="row-${sym}">
@@ -94,7 +94,7 @@ async function renderWatchlist() {
       <td class="price skeleton-text"></td>
       <td class="change skeleton-text"></td>
       <td class="signal-cell skeleton-text"></td>
-      <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym.replace('-','/')}', 'CRYPTO')">Analyze</button></td>
+      <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym.replace('-','/')}', 'CRYPTO')">Quick Check</button></td>
     </tr>
   `).join('');
 

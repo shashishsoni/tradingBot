@@ -81,12 +81,45 @@ router.post('/analyze', async (req, res) => {
     };
   }
 
+  // Add market context for better AI analysis
+  let marketContext = '';
+  try {
+    if (assetType === 'CRYPTO') {
+      const fgRes = await axios.get('https://api.alternative.me/fng/?limit=1', { timeout: 5000 });
+      const fng = fgRes.data?.data?.[0];
+      if (fng) {
+        enriched.fearGreed = { value: parseInt(fng.value), label: fng.value_classification };
+        marketContext += `\nMARKET CONTEXT (CRYPTO):\n- Fear & Greed Index: ${fng.value} (${fng.value_classification})\n- < 20 = extreme fear = potential reversal = bullish\n- > 80 = extreme greed = caution = bearish\n`;
+      }
+      if (marketData.globalStats) {
+        const btcDom = marketData.globalStats.btcDominance;
+        if (btcDom) {
+          enriched.btcDominance = btcDom;
+          marketContext += `- BTC Dominance: ${btcDom}%\n- > 55% = favorable for BTC/ETH, avoid altcoins\n`;
+        }
+      }
+    } else {
+      // For equity, add NIFTY context
+      const niftyRes = await axios.get('https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=5d', {
+        headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000
+      });
+      if (niftyRes.data?.chart?.result?.[0]) {
+        const meta = niftyRes.data.chart.result[0].meta;
+        const niftyPrice = meta.regularMarketPrice;
+        const niftyPrev = meta.previousClose;
+        const niftyChange = niftyPrev > 0 ? ((niftyPrice - niftyPrev) / niftyPrev * 100).toFixed(2) : 0;
+        enriched.nifty = { price: niftyPrice, changePct: parseFloat(niftyChange) };
+        marketContext += `\nMARKET CONTEXT (EQUITY):\n- NIFTY 50: ₹${niftyPrice} (${niftyChange > 0 ? '+' : ''}${niftyChange}%)\n- NIFTY uptrend = favorable for long positions\n- NIFTY downtrend = reduce position size, favor shorts\n`;
+      }
+    }
+  } catch (_) { /* market context is optional */ }
+
   const userMsg = `
 ASSET TYPE: ${assetType}
 CURRENT LIVE PRICE (RAW NUMBER, NO COMMAS): ${marketData.price}
 CAPITAL (RAW NUMBER): ${capital}
 TIME (IST): ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-
+${marketContext}
 CRITICAL RULES FOR THIS SIGNAL:
 - Current ${assetType} price is EXACTLY ${marketData.price} rupees
 - Entry zone low must be between ${Math.round(marketData.price * 0.99)} and ${Math.round(marketData.price * 1.005)}
