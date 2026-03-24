@@ -1045,3 +1045,5 @@ function renderAITradePlanInline(s) {
     (s.riskWarnings && s.riskWarnings.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Warnings</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.riskWarnings.map(w => '<li class="bear-text">' + w + '</li>').join('') + '</ul></div>' : '') +
     '</div>';
 }
+
+document.addEventListener('DOMContentLoaded', initApp);
