@@ -472,13 +472,11 @@ async function renderMfTabData() {
 async function analyzeMfDetail(code) {
   const detailContainer = document.getElementById('mf-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing fund...</p>';
+  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing fund + AI Trade Plan loading...</p>';
   try {
     const analysis = await api.mf.analyze(code);
-    const recClass = analysis.recommendation === 'BUY' ? 'bull-text' : analysis.recommendation === 'AVOID' ? 'bear-text' : '';
     
-    detailContainer.innerHTML = `
-      <div class="signal-card" style="margin-top:16px;">
+    let html = `<div class="signal-card" style="margin-top:16px;">
         <div class="signal-header">
           <div class="signal-badge ${analysis.recommendation}">${analysis.recommendation} — ${analysis.name}</div>
           <div class="sig-v">Conf: ${analysis.confidence}/10</div>
@@ -496,28 +494,29 @@ async function analyzeMfDetail(code) {
         <div style="margin-top:16px;">
           <div class="sig-k">Returns</div>
           <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">1 Week</span><span class="sig-v ${analysis.returns?.['1w'] >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1w'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">1 Month</span><span class="sig-v ${analysis.returns?.['1m'] >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1m'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">3 Months</span><span class="sig-v ${analysis.returns?.['3m'] >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3m'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">1 Year</span><span class="sig-v ${analysis.returns?.['1y'] >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1y'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">3 Years</span><span class="sig-v ${analysis.returns?.['3y'] >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3y'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">5 Years</span><span class="sig-v ${analysis.returns?.['5y'] >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['5y'] ?? 'N/A'}%</span></div>
+            <div class="sig-kv"><span class="sig-k">1W</span><span class="sig-v ${(analysis.returns?.['1w'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1w'] ?? 'N/A'}%</span></div>
+            <div class="sig-kv"><span class="sig-k">1M</span><span class="sig-v ${(analysis.returns?.['1m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1m'] ?? 'N/A'}%</span></div>
+            <div class="sig-kv"><span class="sig-k">3M</span><span class="sig-v ${(analysis.returns?.['3m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3m'] ?? 'N/A'}%</span></div>
+            <div class="sig-kv"><span class="sig-k">1Y</span><span class="sig-v ${(analysis.returns?.['1y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1y'] ?? 'N/A'}%</span></div>
+            <div class="sig-kv"><span class="sig-k">3Y</span><span class="sig-v ${(analysis.returns?.['3y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3y'] ?? 'N/A'}%</span></div>
+            <div class="sig-kv"><span class="sig-k">5Y</span><span class="sig-v ${(analysis.returns?.['5y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['5y'] ?? 'N/A'}%</span></div>
           </div>
         </div>
-        ${analysis.suitability ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">Suitability</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">Short Term</span><span class="sig-v">${analysis.suitability.shortTerm}</span></div>
-            <div class="sig-kv"><span class="sig-k">Long Term</span><span class="sig-v">${analysis.suitability.longTerm}</span></div>
-            <div class="sig-kv"><span class="sig-k">SIP</span><span class="sig-v">${analysis.suitability.sip}</span></div>
-          </div>
-        </div>` : ''}
-        <div class="confluences-list" style="margin-top:16px;">
-          <div class="sig-k">Analysis Reasons</div>
-          <ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
-        </div>
+        ${analysis.suitability ? `<div style="margin-top:16px;"><div class="sig-k">Suitability</div><div class="signal-grid"><div class="sig-kv"><span class="sig-k">Short Term</span><span class="sig-v">${analysis.suitability.shortTerm}</span></div><div class="sig-kv"><span class="sig-k">Long Term</span><span class="sig-v">${analysis.suitability.longTerm}</span></div><div class="sig-kv"><span class="sig-k">SIP</span><span class="sig-v">${analysis.suitability.sip}</span></div></div></div>` : ''}
+        <div class="confluences-list" style="margin-top:16px;"><div class="sig-k">Analysis Reasons</div><ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul></div>
+        <div id="mf-ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Trade Plan...</div>
       </div>`;
+    detailContainer.innerHTML = html;
+
+    // AI Trade Plan
+    try {
+      const { analysis: aiPlan } = await api.ai.analyzeMf(analysis);
+      const planEl = document.getElementById('mf-ai-plan-loading');
+      if (planEl) planEl.outerHTML = renderAIPlanGeneric(aiPlan, 'MF');
+    } catch (e) {
+      const planEl = document.getElementById('mf-ai-plan-loading');
+      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Trade Plan unavailable: ' + e.message + '</p>';
+    }
   } catch (e) {
     detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
   }
@@ -563,14 +562,11 @@ async function renderIpoTabData() {
 async function analyzeIpoDetail(name) {
   const detailContainer = document.getElementById('ipo-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing IPO...</p>';
+  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing IPO + AI Trade Plan loading...</p>';
   try {
     const analysis = await api.ipo.analyze(name);
-    const recClass = analysis.recommendation === 'SUBSCRIBE' || analysis.recommendation === 'BUY' ? 'bull-text' : 
-                     analysis.recommendation === 'AVOID' ? 'bear-text' : '';
     
-    detailContainer.innerHTML = `
-      <div class="signal-card" style="margin-top:16px;">
+    let html = `<div class="signal-card" style="margin-top:16px;">
         <div class="signal-header">
           <div class="signal-badge ${analysis.recommendation}">${analysis.recommendation} — ${analysis.name}</div>
           <div class="sig-v">Conf: ${analysis.confidence}/10</div>
@@ -585,45 +581,26 @@ async function analyzeIpoDetail(name) {
           ${analysis.gmp ? `<div class="sig-kv"><span class="sig-k">GMP</span><span class="sig-v bull-text">₹${analysis.gmp}</span></div>` : ''}
           ${analysis.gain ? `<div class="sig-kv"><span class="sig-k">Listing Gain</span><span class="sig-v ${parseFloat(analysis.gain) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.gain}</span></div>` : ''}
         </div>
-        ${analysis.subscription ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">Subscription Status</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">QIB</span><span class="sig-v">${analysis.subscription.qib}x</span></div>
-            <div class="sig-kv"><span class="sig-k">NII</span><span class="sig-v">${analysis.subscription.nii}x</span></div>
-            <div class="sig-kv"><span class="sig-k">Retail</span><span class="sig-v">${analysis.subscription.retail}x</span></div>
-            <div class="sig-kv"><span class="sig-k">Total</span><span class="sig-v">${analysis.subscription.total}x</span></div>
-          </div>
-        </div>` : ''}
-        ${analysis.financials ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">Financials</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">Revenue</span><span class="sig-v">${analysis.financials.revenue}</span></div>
-            <div class="sig-kv"><span class="sig-k">Profit</span><span class="sig-v">${analysis.financials.profit}</span></div>
-            <div class="sig-kv"><span class="sig-k">P/E</span><span class="sig-v">${analysis.financials.pe || 'N/A'}</span></div>
-            <div class="sig-kv"><span class="sig-k">ROE</span><span class="sig-v">${analysis.financials.roe}%</span></div>
-          </div>
-        </div>` : ''}
-        ${analysis.strengths?.length ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k bull-text">Strengths</div>
-          <ul>${analysis.strengths.map(s => `<li class="bull-text">${s}</li>`).join('')}</ul>
-        </div>` : ''}
-        ${analysis.risks?.length ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k bear-text">Risks</div>
-          <ul>${analysis.risks.map(r => `<li class="bear-text">${r}</li>`).join('')}</ul>
-        </div>` : ''}
-        <div class="confluences-list" style="margin-top:16px;">
-          <div class="sig-k">Analysis Reasons</div>
-          <ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
-        </div>
+        ${analysis.subscription ? `<div style="margin-top:16px;"><div class="sig-k">Subscription</div><div class="signal-grid"><div class="sig-kv"><span class="sig-k">QIB</span><span class="sig-v">${analysis.subscription.qib}x</span></div><div class="sig-kv"><span class="sig-k">NII</span><span class="sig-v">${analysis.subscription.nii}x</span></div><div class="sig-kv"><span class="sig-k">Retail</span><span class="sig-v">${analysis.subscription.retail}x</span></div><div class="sig-kv"><span class="sig-k">Total</span><span class="sig-v">${analysis.subscription.total}x</span></div></div></div>` : ''}
+        <div class="confluences-list" style="margin-top:16px;"><div class="sig-k">Analysis Reasons</div><ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul></div>
+        <div id="ipo-ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Forensic Report...</div>
       </div>`;
+    detailContainer.innerHTML = html;
+
+    // AI Forensic Analysis
+    try {
+      const { analysis: aiPlan } = await api.ai.analyzeIpo(analysis);
+      const planEl = document.getElementById('ipo-ai-plan-loading');
+      if (planEl) planEl.outerHTML = renderAIPlanGeneric(aiPlan, 'IPO');
+    } catch (e) {
+      const planEl = document.getElementById('ipo-ai-plan-loading');
+      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Forensic Report unavailable: ' + e.message + '</p>';
+    }
   } catch (e) {
     detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
   }
 }
+
 
 function renderRiskTabData() {
   const container = document.getElementById('tab-risk');
@@ -984,14 +961,13 @@ async function loadRiskEngine() {
 
     // Market data cards
     if (dataContainer) {
-      dataContainer.innerHTML = '<div class="signal-grid">' +
-        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">NIFTY 50</div><div class="sig-v" style="font-size:1.2em;">' + (md.nifty || '-') + '</div></div>' +
-        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">BANKNIFTY</div><div class="sig-v" style="font-size:1.2em;">' + (md.banknifty || '-') + '</div></div>' +
-        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">India VIX</div><div class="sig-v" style="font-size:1.2em;">' + (md.indiaVIX || '-') + '</div></div>' +
-        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">Crude Oil</div><div class="sig-v" style="font-size:1.2em;">' + (md.crudeOil || '-') + '</div></div>' +
-        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">USD/INR</div><div class="sig-v" style="font-size:1.2em;">' + (md.usdInr || '-') + '</div></div>' +
-        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">F&O Expiry</div><div class="sig-v" style="font-size:1.2em;">' + (md.fnoExpiry || '-') + '</div></div>' +
-        '</div>';
+      dataContainer.innerHTML =
+        '<div class="market-card"><div class="mc-label">NIFTY 50</div><div class="mc-value">' + (md.nifty || '-') + '</div></div>' +
+        '<div class="market-card"><div class="mc-label">BANKNIFTY</div><div class="mc-value">' + (md.banknifty || '-') + '</div></div>' +
+        '<div class="market-card"><div class="mc-label">India VIX</div><div class="mc-value">' + (md.indiaVIX || '-') + '</div></div>' +
+        '<div class="market-card"><div class="mc-label">Crude Oil</div><div class="mc-value">' + (md.crudeOil || '-') + '</div></div>' +
+        '<div class="market-card"><div class="mc-label">USD/INR</div><div class="mc-value">' + (md.usdInr || '-') + '</div></div>' +
+        '<div class="market-card"><div class="mc-label">F&O Expiry</div><div class="mc-value">' + (md.fnoExpiry || '-') + '</div></div>';
     }
 
     // Risk assessment
@@ -1044,6 +1020,62 @@ function renderAITradePlanInline(s) {
     (s.confluences && s.confluences.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Confluences</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.confluences.map(c => '<li>' + c + '</li>').join('') + '</ul></div>' : '') +
     (s.riskWarnings && s.riskWarnings.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Warnings</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.riskWarnings.map(w => '<li class="bear-text">' + w + '</li>').join('') + '</ul></div>' : '') +
     '</div>';
+}
+
+function renderAIPlanGeneric(plan, type) {
+  if (!plan || plan.error) {
+    return '<div class="signal-card HOLD" style="margin-top:16px;"><div class="signal-badge HOLD">AI ' + type + ' Analysis</div><p class="muted" style="padding:8px 0;">No analysis available.</p></div>';
+  }
+  var decision = plan.decision || plan.signal || 'HOLD';
+  var cls = decision === 'BUY' || decision === 'START_SIP' || decision === 'APPLY_LISTING_GAINS' || decision === 'APPLY_LONG_TERM' || decision === 'ACCUMULATE' ? 'BUY' :
+            decision === 'AVOID' || decision === 'DUMP' ? 'SELL' : 'HOLD';
+  
+  var html = '<div class="signal-card ' + cls + '" style="margin-top:16px;">' +
+    '<div class="signal-header"><div class="signal-badge ' + cls + '">AI ' + type + ': ' + decision + '</div><div class="sig-v">Conf: ' + (plan.confidence || 0) + '/10</div></div>';
+
+  // Show key fields based on what's available
+  html += '<div class="signal-grid" style="margin-top:12px;">';
+  if (plan.conviction) html += '<div class="sig-kv"><span class="sig-k">Conviction</span><span class="sig-v">' + plan.conviction + '</span></div>';
+  if (plan.idealHorizon) html += '<div class="sig-kv"><span class="sig-k">Ideal Horizon</span><span class="sig-v">' + plan.idealHorizon + '</span></div>';
+  if (plan.sipVsLumpSum) html += '<div class="sig-kv"><span class="sig-k">SIP vs Lump</span><span class="sig-v">' + plan.sipVsLumpSum + '</span></div>';
+  if (plan.listingPremiumEstimate) html += '<div class="sig-kv"><span class="sig-k">Listing Est.</span><span class="sig-v">' + plan.listingPremiumEstimate + '</span></div>';
+  if (plan.fairValue) html += '<div class="sig-kv"><span class="sig-k">Fair Value</span><span class="sig-v">' + plan.fairValue + '</span></div>';
+  if (plan.regulatoryRisk) html += '<div class="sig-kv"><span class="sig-k">Reg. Risk</span><span class="sig-v">' + plan.regulatoryRisk + '/10</span></div>';
+  if (plan.probabilityOfSuccess) html += '<div class="sig-kv"><span class="sig-k">Success Prob</span><span class="sig-v">' + plan.probabilityOfSuccess + '</span></div>';
+  html += '</div>';
+
+  if (plan.strengths && plan.strengths.length > 0) {
+    html += '<div style="margin-top:12px;"><div class="sig-k">Strengths</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+      plan.strengths.map(function(s) { return '<li class="bull-text">' + s + '</li>'; }).join('') + '</ul></div>';
+  }
+  if (plan.weaknesses && plan.weaknesses.length > 0) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">Weaknesses</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+      plan.weaknesses.map(function(w) { return '<li class="bear-text">' + w + '</li>'; }).join('') + '</ul></div>';
+  }
+  if (plan.redFlags && plan.redFlags.length > 0) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">Red Flags</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+      plan.redFlags.map(function(r) { return '<li class="bear-text">' + r + '</li>'; }).join('') + '</ul></div>';
+  }
+  if (plan.benchmarkComparison) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">Benchmark</div><p style="font-size:12px;margin:4px 0;">' + plan.benchmarkComparison + '</p></div>';
+  }
+  if (plan.peerComparison) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">Peer Comparison</div><p style="font-size:12px;margin:4px 0;">' + plan.peerComparison + '</p></div>';
+  }
+  if (plan.sectorOutlook) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">Sector Outlook</div><p style="font-size:12px;margin:4px 0;">' + plan.sectorOutlook + '</p></div>';
+  }
+  if (plan.gmpAnalysis) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">GMP Analysis</div><p style="font-size:12px;margin:4px 0;">' + plan.gmpAnalysis + '</p></div>';
+  }
+  if (plan.marketCrashPerformance) {
+    html += '<div style="margin-top:8px;"><div class="sig-k">Crash Performance</div><p style="font-size:12px;margin:4px 0;">' + plan.marketCrashPerformance + '</p></div>';
+  }
+  if (plan.actionableAdvice) {
+    html += '<div style="margin-top:12px;padding:8px 12px;background:rgba(0,212,170,0.1);border-radius:6px;font-size:12px;"><strong>Action:</strong> ' + plan.actionableAdvice + '</div>';
+  }
+  html += '</div>';
+  return html;
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

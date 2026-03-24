@@ -55,16 +55,20 @@ router.get('/search/:q', async (req, res) => {
 router.get('/analyze/:code', async (req, res) => {
   try {
     const code = req.params.code;
-    const { data } = await axios.get(`${MFAPI}${code}`, { timeout: 10000 });
+    const { data } = await axios.get(`${MFAPI}${code}`, { timeout: 15000 });
     
     const rows = Array.isArray(data?.data) ? data.data : [];
     if (!rows.length) {
-      return res.status(404).json({ error: 'Fund not found' });
+      return res.status(404).json({ error: 'Fund not found or no data available' });
     }
     
     const meta = data.meta || {};
     const latest = rows[0] || {};
     const nav = Number.parseFloat(latest.nav);
+    
+    if (!Number.isFinite(nav)) {
+      return res.status(500).json({ error: 'Invalid NAV data' });
+    }
     
     // Calculate returns
     const getReturn = (days) => {

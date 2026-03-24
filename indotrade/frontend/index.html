@@ -180,61 +180,83 @@
                 <!-- Placeholders for other tabs -->
                 <!-- Equity Analysis Tab -->
                 <div id="tab-equity" class="tab-pane">
-                    <div class="flex-row" style="margin-bottom:16px;">
-                        <h2 style="margin:0;">Equity Analysis <span class="muted" style="font-size:12px;font-weight:400;">(NSE/BSE)</span></h2>
-                        <select id="equity-symbol-select" aria-label="Select equity stock" class="watchlist-search-input" style="width:auto;padding:6px 12px;" onchange="if(this.value) analyzeEquityFromTab(this.value)">
+                    <div class="tab-header">
+                        <div>
+                            <h2>Equity Analysis</h2>
+                            <span class="muted" style="font-size:12px;">NSE/BSE stocks with AI trade plans</span>
+                        </div>
+                        <select id="equity-symbol-select" aria-label="Select equity stock" onchange="if(this.value) analyzeEquityFromTab(this.value)">
                             <option value="">Select Stock...</option>
                         </select>
                     </div>
-                    <div id="equity-market-context" style="margin-bottom:16px;"></div>
+                    <div id="equity-market-context" class="market-cards"></div>
                     <div id="equity-detail-container"></div>
                 </div>
 
                 <!-- F&O Options Tab -->
                 <div id="tab-fo" class="tab-pane">
-                    <div class="flex-row" style="margin-bottom:16px;">
-                        <h2 style="margin:0;">F&O Options Analysis</h2>
+                    <div class="tab-header">
+                        <div>
+                            <h2>F&O Options Analysis</h2>
+                            <span class="muted" style="font-size:12px;">NIFTY/BANKNIFTY option chain analysis</span>
+                        </div>
                         <div id="fo-expiry-badge"></div>
                     </div>
-                    <div id="fo-expiry-warning" style="margin-bottom:16px;"></div>
+                    <div id="fo-expiry-warning" class="market-cards"></div>
                     <div id="fo-info-container"></div>
                     <div id="fo-detail-container"></div>
                 </div>
 
                 <!-- Crypto Analysis Tab -->
                 <div id="tab-crypto" class="tab-pane">
-                    <div class="flex-row" style="margin-bottom:16px;">
-                        <h2 style="margin:0;">Crypto Analysis <span class="muted" style="font-size:12px;font-weight:400;">(INR Pairs)</span></h2>
-                        <select id="crypto-symbol-select" aria-label="Select cryptocurrency" class="watchlist-search-input" style="width:auto;padding:6px 12px;" onchange="if(this.value) analyzeCryptoFromTab(this.value)">
+                    <div class="tab-header">
+                        <div>
+                            <h2>Crypto Analysis</h2>
+                            <span class="muted" style="font-size:12px;">ZebPay INR pairs with AI trade plans</span>
+                        </div>
+                        <select id="crypto-symbol-select" aria-label="Select cryptocurrency" onchange="if(this.value) analyzeCryptoFromTab(this.value)">
                             <option value="">Select Coin...</option>
                         </select>
                     </div>
-                    <div id="crypto-global-container" style="margin-bottom:16px;"></div>
+                    <div id="crypto-global-container" class="market-cards"></div>
                     <div id="crypto-top-movers" style="margin-bottom:16px;"></div>
                     <div id="crypto-detail-container"></div>
                 </div>
 
                 <!-- Mutual Funds Tab -->
                 <div id="tab-mf" class="tab-pane">
-                    <h2>Mutual Funds Watchlist</h2>
+                    <div class="tab-header">
+                        <div>
+                            <h2>Mutual Funds</h2>
+                            <span class="muted" style="font-size:12px;">SIP/lump sum analysis with AI recommendation</span>
+                        </div>
+                    </div>
                     <div id="mf-container"></div>
                     <div id="mf-detail-container"></div>
                 </div>
 
                 <!-- IPO Tab -->
                 <div id="tab-ipo" class="tab-pane">
-                    <h2>Recent & Upcoming IPOs</h2>
+                    <div class="tab-header">
+                        <div>
+                            <h2>IPO Analysis</h2>
+                            <span class="muted" style="font-size:12px;">Forensic analysis before you apply</span>
+                        </div>
+                    </div>
                     <div id="ipo-container"></div>
                     <div id="ipo-detail-container"></div>
                 </div>
 
                 <!-- Risk Engine Tab -->
                 <div id="tab-risk" class="tab-pane">
-                    <div class="flex-row" style="margin-bottom:16px;">
-                        <h2 style="margin:0;">Risk Engine <span class="muted" style="font-size:12px;font-weight:400;">(Macro Assessment)</span></h2>
+                    <div class="tab-header">
+                        <div>
+                            <h2>Risk Engine</h2>
+                            <span class="muted" style="font-size:12px;">Macro-economic risk assessment — FII/DII, RBI/Fed, VIX, crude oil</span>
+                        </div>
                         <button class="btn-primary" onclick="loadRiskEngine()" id="btn-risk-assess">Assess Market Risk</button>
                     </div>
-                    <div id="risk-market-data" style="margin-bottom:16px;"></div>
+                    <div id="risk-market-data" class="market-cards"></div>
                     <div id="risk-assessment-container"></div>
                 </div>
             </div>

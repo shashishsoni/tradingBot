@@ -131,6 +131,36 @@ const api = {
         emitApiEvent('indotrade:api-ok');
         return r.json();
       });
+    },
+    analyzeMf: (fundData) => {
+      ensureApiBase();
+      return fetch(`${API}/ai/analyze-mf`, {
+        method: 'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ fundData })
+      }).then(async r => {
+        if (!r.ok) {
+          const payload = await parseJsonSafe(r);
+          if (r.status === 429) emitApiEvent('indotrade:rate-limit', { status: 429 });
+          throw new Error(payload?.error || 'MF Analysis Failed');
+        }
+        emitApiEvent('indotrade:api-ok');
+        return r.json();
+      });
+    },
+    analyzeIpo: (ipoData) => {
+      ensureApiBase();
+      return fetch(`${API}/ai/analyze-ipo`, {
+        method: 'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ ipoData })
+      }).then(async r => {
+        if (!r.ok) {
+          const payload = await parseJsonSafe(r);
+          if (r.status === 429) emitApiEvent('indotrade:rate-limit', { status: 429 });
+          throw new Error(payload?.error || 'IPO Analysis Failed');
+        }
+        emitApiEvent('indotrade:api-ok');
+        return r.json();
+      });
     }
   }
 };

@@ -527,3 +527,208 @@ th.sort-desc::after { content: '↓'; opacity: 1; color: var(--accent); }
 /* Clickable Watchlist Rows */
 .watchlist-clickable { cursor: pointer; transition: background 0.15s; }
 .watchlist-clickable:hover { background: var(--surface2); }
+
+/* === Tab Layouts (Equity, Crypto, MF, IPO, Risk, F&O) === */
+.tab-pane {
+  padding: 20px 0;
+}
+.tab-pane h2 {
+  margin: 0 0 4px 0;
+  font-size: 1.3em;
+}
+.tab-pane .tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.tab-pane .tab-header select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: var(--r);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  min-width: 180px;
+  outline: none;
+  cursor: pointer;
+}
+.tab-pane .tab-header select:focus {
+  border-color: var(--accent);
+}
+
+/* Market Context Cards (NIFTY, VIX, etc.) */
+.market-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.market-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  text-align: center;
+}
+.market-card .mc-label {
+  font-size: 0.7rem;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.market-card .mc-value {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Analysis Detail Card */
+.analysis-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+  margin-top: 16px;
+}
+.analysis-card .ac-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-card .ac-header .ac-title {
+  font-size: 1.1em;
+  font-weight: 700;
+}
+.analysis-card .ac-header .ac-badge {
+  font-size: 0.75em;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.analysis-card .ac-header .ac-badge.BUY { background: rgba(0,212,170,0.15); color: var(--bull); }
+.analysis-card .ac-header .ac-badge.SELL { background: rgba(255,68,102,0.15); color: var(--bear); }
+.analysis-card .ac-header .ac-badge.HOLD { background: rgba(245,158,11,0.15); color: var(--warn); }
+
+/* Data Grid (for metrics display) */
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.data-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+.data-item .di-label { color: var(--text2); }
+.data-item .di-value { font-weight: 600; color: var(--text); }
+
+/* Section Headers in Analysis */
+.section-header {
+  font-size: 0.75em;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 16px 0 8px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Reason Lists */
+.reason-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0;
+}
+.reason-list li {
+  padding: 4px 0 4px 16px;
+  font-size: 0.85em;
+  position: relative;
+}
+.reason-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--text2);
+}
+.reason-list li.bull::before { color: var(--bull); }
+.reason-list li.bear::before { color: var(--bear); }
+
+/* AI Plan Box */
+.ai-plan-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  border-left: 3px solid var(--accent);
+}
+.ai-plan-box .ap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ai-plan-box .ap-title {
+  font-size: 0.9em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Risk Score Bar */
+.risk-bar {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+.risk-bar-fill.low { background: var(--bull); }
+.risk-bar-fill.medium { background: var(--warn); }
+.risk-bar-fill.high { background: var(--bear); }
+
+/* Action Box */
+.action-box {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(0,212,170,0.08);
+  border: 1px solid rgba(0,212,170,0.2);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+.action-box.warning {
+  background: rgba(255,68,102,0.08);
+  border-color: rgba(255,68,102,0.2);
+}
+
+/* Confidence Bar */
+.confidence-bar-bg {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.confidence-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.3s;
+}

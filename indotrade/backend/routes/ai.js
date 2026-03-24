@@ -592,4 +592,110 @@ Analyze this data and provide a comprehensive risk assessment. Respond ONLY in v
   }
 });
 
+// MUTUAL FUND AI ANALYSIS — SEBI-registered Portfolio Manager style
+router.post('/analyze-mf', async (req, res) => {
+  const { fundData } = req.body;
+  if (!fundData) return res.status(400).json({ error: 'fundData required' });
+
+  const SYSTEM_MF = `You are a strict SEBI-registered Portfolio Manager analyzing Indian mutual funds.
+Analyze the provided fund data and generate a detailed investment recommendation.
+
+FRAMEWORK:
+1. Risk-Adjusted Performance: Alpha, Beta, Sharpe ratio. Does the fund manager beat the benchmark during downturns?
+2. Historical Returns: 1Y, 3Y, 5Y returns vs category average. Consistency of performance.
+3. Volatility & Drawdown: Max drawdown, standard deviation. How much can you lose?
+4. Fund Type Suitability: Index funds, large cap, mid cap, small cap — which suits which investor?
+5. SIP vs Lump Sum: Which strategy works better for this fund?
+
+OUTPUT: Strict JSON only.
+{
+  "decision": "START_SIP or LUMP_SUM or HOLD or AVOID",
+  "conviction": "HIGH or MEDIUM or LOW",
+  "confidence": 1-10,
+  "idealHorizon": "minimum years for optimal compounding",
+  "sipVsLumpSum": "which strategy is better and why",
+  "strengths": ["top 3 strengths of this fund"],
+  "weaknesses": ["top 2 weaknesses or risks"],
+  "benchmarkComparison": "how it compares to category benchmark",
+  "marketCrashPerformance": "how it performed during last correction",
+  "actionableAdvice": "specific advice for retail investors",
+  "disclaimer": "Not financial advice. Consult SEBI-registered advisor."
+}`;
+
+  try {
+    const userMsg = `FUND DATA:\n${JSON.stringify(fundData, null, 2)}\n\nAnalyze this fund and provide detailed recommendation. Respond ONLY in valid JSON.`;
+
+    const { data } = await axios.post(GROQ, {
+      model: MODEL,
+      messages: [{ role: 'system', content: SYSTEM_MF }, { role: 'user', content: userMsg }],
+      temperature: 0.2,
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
+    }, {
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      timeout: 15000
+    });
+
+    const analysis = JSON.parse(data.choices[0].message.content);
+    res.json({ analysis, tokens: data.usage?.total_tokens || 0, timestamp: new Date().toISOString() });
+  } catch (e) {
+    if (e.response?.status === 429) return res.status(429).json({ error: 'Groq rate limit. Wait 60s.' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// IPO AI ANALYSIS — Forensic Analyst style
+router.post('/analyze-ipo', async (req, res) => {
+  const { ipoData } = req.body;
+  if (!ipoData) return res.status(400).json({ error: 'ipoData required' });
+
+  const SYSTEM_IPO = `You are an elite IPO Forensic Analyst specializing in Indian markets.
+Analyze the provided IPO data and determine if it's worth applying.
+
+FRAMEWORK:
+1. Issue Structure: Fresh Issue vs OFS ratio. Is money going to company growth or promoters cashing out?
+2. Valuation: PE ratio vs listed peers. Is it priced to leave money on table or fully valued?
+3. Financial Health: Revenue growth, PAT growth, debt levels, promoter holding.
+4. Grey Market Premium: Current GMP trend. What does the market expect?
+5. Sector Outlook: Is this sector in favor? Government policies supporting it?
+6. Red Flags: Pending litigation, heavy debt, declining margins, high OFS ratio.
+
+OUTPUT: Strict JSON only.
+{
+  "decision": "APPLY_LISTING_GAINS or APPLY_LONG_TERM or AVOID",
+  "conviction": "HIGH or MEDIUM or LOW",
+  "confidence": 1-10,
+  "listingPremiumEstimate": "estimated % gain/loss on listing",
+  "fairValue": "is IPO fairly valued vs peers",
+  "strengths": ["top 3 reasons to apply"],
+  "redFlags": ["top 2 risks or concerns"],
+  "peerComparison": "how it compares to listed peers",
+  "sectorOutlook": "sector growth prospects"],
+  "gmpAnalysis": "what GMP signals about market sentiment",
+  "actionableAdvice": "specific advice — apply or skip",
+  "disclaimer": "IPO analysis only. Not financial advice."
+}`;
+
+  try {
+    const userMsg = `IPO DATA:\n${JSON.stringify(ipoData, null, 2)}\n\nAnalyze this IPO and provide detailed recommendation. Respond ONLY in valid JSON.`;
+
+    const { data } = await axios.post(GROQ, {
+      model: MODEL,
+      messages: [{ role: 'system', content: SYSTEM_IPO }, { role: 'user', content: userMsg }],
+      temperature: 0.2,
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
+    }, {
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      timeout: 15000
+    });
+
+    const analysis = JSON.parse(data.choices[0].message.content);
+    res.json({ analysis, tokens: data.usage?.total_tokens || 0, timestamp: new Date().toISOString() });
+  } catch (e) {
+    if (e.response?.status === 429) return res.status(429).json({ error: 'Groq rate limit. Wait 60s.' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
