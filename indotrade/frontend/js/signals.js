@@ -47,9 +47,16 @@ async function updateEquityPrices() {
       if (d.error) return;
       const row = document.getElementById(`row-${d.symbol}`);
       if (row) {
-        row.querySelector('.price').innerHTML = `₹${d.price}`;
+        const price = Number(d.price);
+        const pct = Number(d.changePct);
+        const hasPct = Number.isFinite(pct);
+        row.querySelector('.price').innerHTML = Number.isFinite(price) ? `₹${price}` : '—';
         row.querySelector('.price').classList.remove('skeleton-text');
-        row.querySelector('.change').innerHTML = `<span class="${d.changePct >= 0 ? 'bull-text' : 'bear-text'}">${d.changePct >= 0 ? '+' : ''}${d.changePct}%</span>`;
+        if (hasPct) {
+          row.querySelector('.change').innerHTML = `<span class="${pct >= 0 ? 'bull-text' : 'bear-text'}">${pct >= 0 ? '+' : ''}${pct}%</span>`;
+        } else {
+          row.querySelector('.change').innerHTML = '<span class="muted">—</span>';
+        }
         row.querySelector('.change').classList.remove('skeleton-text');
       }
     });

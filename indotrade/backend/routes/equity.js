@@ -36,7 +36,18 @@ router.post('/batch', async (req, res) => {
   res.json(results.map((r, i) => {
     if (r.status === 'rejected') return { symbol: symbols[i], error: true };
     const m = r.value.data.chart.result[0].meta;
-    return { symbol: symbols[i], price: m.regularMarketPrice, changePct: +((m.regularMarketPrice - m.previousClose) / m.previousClose * 100).toFixed(2), volume: m.regularMarketVolume };
+    const price = Number(m.regularMarketPrice);
+    const prev = Number(m.previousClose);
+    const hasValidPrev = Number.isFinite(prev) && prev !== 0;
+    const changePct = hasValidPrev && Number.isFinite(price)
+      ? +(((price - prev) / prev) * 100).toFixed(2)
+      : null;
+    return {
+      symbol: symbols[i],
+      price: Number.isFinite(price) ? price : null,
+      changePct,
+      volume: m.regularMarketVolume ?? null
+    };
   }));
 });
 
