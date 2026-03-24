@@ -84,14 +84,19 @@ function initTabs() {
   tabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
       e.preventDefault();
-      const targetId = tab.getAttribute('data-tab');
+      const targetItem = e.target.closest('.nav-item') || tab;
+      const targetId = targetItem.getAttribute('data-tab');
       
       tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+      targetItem.classList.add('active');
       
       panes.forEach(p => p.classList.remove('active'));
       const targetPane = document.getElementById(`tab-${targetId}`);
-      if (targetPane) targetPane.classList.add('active');
+      if (targetPane) {
+        targetPane.classList.remove('active');
+        void targetPane.offsetWidth;
+        targetPane.classList.add('active');
+      }
     });
   });
 }
