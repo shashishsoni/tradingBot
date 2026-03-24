@@ -1,29 +1,73 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
+const { calculateIndicators } = require('../utils/indicators');
 
-/** Short TTL cache to avoid CoinGecko free-tier 429 on repeated OHLCV calls */
-const ohlcvCache = new Map();
-const OHLCV_CACHE_MS = 120_000;
-
-const ZEB = 'https://www.zebapi.com/pro/v1/market/';
+const SAPI = 'https://sapi.zebpay.com/api/v2';
 const GCK = 'https://api.coingecko.com/api/v3/';
 
-const PAIRS = ['BTC/INR','ETH/INR','SOL/INR','XRP/INR','BNB/INR','ADA/INR','DOGE/INR','USDT/INR'];
+// Cache for exchangeInfo (pair listing changes rarely, refresh every 5 min)
+let pairsCache = null;
+let pairsCacheTime = 0;
+const PAIRS_CACHE_MS = 5 * 60 * 1000;
 
-router.get('/all', async (req, res) => {
-  const results = await Promise.allSettled(PAIRS.map(p => {
-    const [b, q] = p.split('/');
-    return axios.get(`${ZEB}${b}-${q}/ticker`, { timeout: 5000 });
-  }));
-  res.json(results.map((r, i) => {
-    if (r.status === 'fulfilled') {
-      return { ...r.value.data, pair: PAIRS[i] };
-    }
-    return { pair: PAIRS[i], error: true };
-  }));
+async function getInrPairs() {
+  const now = Date.now();
+  if (pairsCache && now - pairsCacheTime < PAIRS_CACHE_MS) return pairsCache;
+  const { data } = await axios.get(`${SAPI}/ex/exchangeInfo`, { timeout: 8000 });
+  const symbols = data?.data?.symbols || [];
+  pairsCache = symbols
+    .filter(s => s.symbol.endsWith('-INR') && s.status === 'Open')
+    .map(s => ({
+      symbol: s.symbol,
+      baseAsset: s.baseAsset,
+      quoteAsset: s.quoteAsset,
+      tickSz: s.tickSz,
+      lotSz: s.lotSz,
+      orderTypes: s.orderTypes
+    }));
+  pairsCacheTime = now;
+  return pairsCache;
+}
+
+// GET /pairs — all available INR trading pairs (live from ZebPay)
+router.get('/pairs', async (req, res) => {
+  try {
+    const pairs = await getInrPairs();
+    res.json(pairs);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /all — live tickers for ALL INR pairs (single allTickers call)
+router.get('/all', async (req, res) => {
+  try {
+    const [tickersRes, pairs] = await Promise.all([
+      axios.get(`${SAPI}/market/allTickers`, { timeout: 8000 }),
+      getInrPairs()
+    ]);
+    const allTickers = tickersRes.data?.data || [];
+    const inrPairSet = new Set(pairs.map(p => p.symbol));
+    const inrTickers = allTickers
+      .filter(t => inrPairSet.has(t.symbol))
+      .map(t => ({
+        pair: t.symbol,
+        baseAsset: t.symbol.split('-')[0],
+        market: t.last,
+        buy: t.bid,
+        sell: t.ask,
+        pricechange: t.percentage,
+        volume: t.baseVolume,
+        volumeQt: t.quoteVolume,
+        high: t.high,
+        low: t.low,
+        open: t.open,
+        close: t.close
+      }));
+    res.json(inrTickers);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /global — crypto market overview (CoinGecko + Fear & Greed)
 router.get('/global', async (req, res) => {
   try {
     const [global, fg, trending] = await Promise.allSettled([
@@ -37,66 +81,209 @@ router.get('/global', async (req, res) => {
       totalVolume: global.status === 'fulfilled' ? global.value.data.data.total_volume.usd : 0,
       fearGreed: fg.status === 'fulfilled' ? fg.value.data.data[0].value : 50,
       fearGreedLabel: fg.status === 'fulfilled' ? fg.value.data.data[0].value_classification : 'Neutral',
-      trending: trending.status === 'fulfilled' ? trending.value.data.coins.slice(0,5).map(c => ({ name: c.item.name, symbol: c.item.symbol })) : []
+      trending: trending.status === 'fulfilled' ? trending.value.data.coins.slice(0, 5).map(c => ({ name: c.item.name, symbol: c.item.symbol })) : []
     });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ZebPay coin ticker → CoinGecko coin ID map
-const COIN_ID_MAP = {
-  'btc': 'bitcoin',
-  'eth': 'ethereum',
-  'sol': 'solana',
-  'xrp': 'ripple',
-  'bnb': 'binancecoin',
-  'ada': 'cardano',
-  'doge': 'dogecoin',
-  'usdt': 'tether',
-};
-
-// OHLCV via CoinGecko (rate-limited upstream; we cache + serve stale on 429)
+// GET /ohlcv/:coin — OHLCV from ZebPay SAPI v2 klines (no CoinGecko, no caching)
 router.get('/ohlcv/:coin', async (req, res) => {
-  const coin = req.params.coin.toLowerCase().replace('-inr', '').replace('/inr', '');
-  const coinId = COIN_ID_MAP[coin];
-  const days = req.query.days || 7;
-  const cacheKey = `${coin}:${days}`;
-
-  if (!coinId) {
-    return res.status(400).json({
-      error: `Unknown coin: ${coin}. Supported: ${Object.keys(COIN_ID_MAP).join(', ')}`
-    });
-  }
-
-  const now = Date.now();
-  const cached = ohlcvCache.get(cacheKey);
-  if (cached && now - cached.t < OHLCV_CACHE_MS) {
-    return res.json(cached.data);
-  }
-
   try {
-    const { data } = await axios.get(
-      `${GCK}coins/${coinId}/ohlc?vs_currency=inr&days=${days}`,
-      { timeout: 8000 }
-    );
+    const coin = req.params.coin.toUpperCase().replace('-INR', '').replace('/INR', '');
+    const symbol = `${coin}-INR`;
+    const days = parseInt(req.query.days) || 7;
+    const interval = days <= 1 ? '5m' : days <= 7 ? '1h' : days <= 30 ? '4h' : '1d';
+    const endTime = Date.now();
+    const startTime = endTime - days * 24 * 60 * 60 * 1000;
 
-    const mapped = data.map(([time, open, high, low, close]) => ({
-      time: time / 1000,
-      open,
-      high,
-      low,
-      close
+    const { data } = await axios.get(`${SAPI}/market/klines`, {
+      params: { symbol, interval, startTime, endTime },
+      timeout: 10000
+    });
+
+    const raw = data?.data || [];
+    const ohlcv = raw.map(([time, open, high, low, close]) => ({
+      time,
+      open: parseFloat(open),
+      high: parseFloat(high),
+      low: parseFloat(low),
+      close: parseFloat(close)
     }));
-    ohlcvCache.set(cacheKey, { t: now, data: mapped });
-    res.json(mapped);
-  } catch (err) {
-    if (err.response?.status === 429 && cached) {
-      return res.json(cached.data);
+
+    if (!ohlcv.length) {
+      return res.status(404).json({ error: `No OHLCV data for ${symbol}. Pair may not exist.` });
     }
-    if (err.response?.status === 429) {
-      return res.status(429).json({ error: 'CoinGecko rate limit. Wait 60s.' });
-    }
-    res.status(500).json({ error: err.message });
+    res.json(ohlcv);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
+});
+
+// GET /analyze/:coin — comprehensive analysis using ZebPay live data
+router.get('/analyze/:coin', async (req, res) => {
+  try {
+    const coin = req.params.coin.toUpperCase().replace('-INR', '').replace('/INR', '');
+    const symbol = `${coin}-INR`;
+
+    // Fetch all data in parallel — ZebPay klines + CoinGecko global context
+    const endTime = Date.now();
+    const startTime30d = endTime - 30 * 24 * 60 * 60 * 1000;
+
+    const [klinesRes, tickerRes, coinGeckoRes, globalRes, fgRes] = await Promise.allSettled([
+      axios.get(`${SAPI}/market/klines`, { params: { symbol, interval: '4h', startTime: startTime30d, endTime }, timeout: 10000 }),
+      axios.get(`${SAPI}/market/ticker`, { params: { symbol }, timeout: 5000 }),
+      axios.get(`${GCK}coins/${coin.toLowerCase()}?localization=false&tickers=false&community_data=true&developer_data=true`, { timeout: 10000 }),
+      axios.get(`${GCK}global`, { timeout: 8000 }),
+      axios.get('https://api.alternative.me/fng/?limit=7', { timeout: 5000 })
+    ]);
+
+    // Parse OHLCV
+    const raw = klinesRes.status === 'fulfilled' ? (klinesRes.value.data?.data || []) : [];
+    const ohlcv = raw.map(([time, open, high, low, close]) => ({
+      time,
+      open: parseFloat(open),
+      high: parseFloat(high),
+      low: parseFloat(low),
+      close: parseFloat(close)
+    }));
+
+    // Current price from ticker
+    const tickerData = tickerRes.status === 'fulfilled' ? tickerRes.value.data?.data : null;
+    const currentPrice = tickerData ? parseFloat(tickerData.last) : (ohlcv.length > 0 ? ohlcv[ohlcv.length - 1].close : 0);
+    const change24h = tickerData ? parseFloat(tickerData.percentage) : 0;
+
+    // Calculate indicators
+    const indicators = ohlcv.length >= 26 ? calculateIndicators(ohlcv) : null;
+
+    // Volatility from OHLCV returns
+    const returns = [];
+    for (let i = 1; i < ohlcv.length; i++) {
+      if (ohlcv[i].close > 0 && ohlcv[i - 1].close > 0) {
+        returns.push(Math.log(ohlcv[i].close / ohlcv[i - 1].close));
+      }
+    }
+    const mean = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
+    const variance = returns.length > 0 ? returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length : 0;
+    const volatility = +(Math.sqrt(variance) * Math.sqrt(365) * 100).toFixed(2);
+
+    // Liquidity from ZebPay quote volume
+    const quoteVolume = tickerData ? parseFloat(tickerData.quoteVolume) : 0;
+    const liquidityScore = quoteVolume > 1000000000 ? 'HIGH' : quoteVolume > 100000000 ? 'MEDIUM' : 'LOW';
+
+    // CoinGecko on-chain metrics
+    const coinMeta = coinGeckoRes.status === 'fulfilled' ? coinGeckoRes.value.data : null;
+    const onChain = coinMeta ? {
+      marketCapRank: coinMeta.market_cap_rank,
+      totalSupply: coinMeta.total_supply,
+      circulatingSupply: coinMeta.circulating_supply,
+      maxSupply: coinMeta.max_supply,
+      supplyRatio: coinMeta.max_supply ? +((coinMeta.circulating_supply / coinMeta.max_supply) * 100).toFixed(2) : null,
+      ath: coinMeta.market_data?.ath?.inr,
+      athChange: coinMeta.market_data?.ath_change_percentage?.inr,
+      atl: coinMeta.market_data?.atl?.inr,
+      atlChange: coinMeta.market_data?.atl_change_percentage?.inr
+    } : null;
+
+    // Community & Development
+    const community = coinMeta ? {
+      twitterFollowers: coinMeta.community_data?.twitter_followers,
+      redditSubscribers: coinMeta.community_data?.reddit_subscribers,
+      githubStars: coinMeta.developer_data?.stars,
+      githubForks: coinMeta.developer_data?.forks,
+      commitCount4w: coinMeta.developer_data?.commit_count_4_weeks
+    } : null;
+
+    // Global context
+    const globalData = globalRes.status === 'fulfilled' ? globalRes.value.data.data : null;
+    const fngData = fgRes.status === 'fulfilled' ? fgRes.value.data.data : [];
+    const currentFNG = fngData[0]?.value || 50;
+    const fngTrend = fngData.length >= 3
+      ? (fngData[0].value > fngData[2].value ? 'RISING' : fngData[0].value < fngData[2].value ? 'FALLING' : 'STABLE')
+      : 'UNKNOWN';
+    const btcDominance = globalData?.market_cap_percentage?.btc || 50;
+
+    // Generate recommendation
+    let recommendation = 'HOLD';
+    let confidence = 5;
+    const reasons = [];
+
+    if (btcDominance > 55 && coin !== 'BTC' && coin !== 'ETH') {
+      reasons.push(`BTC dominance ${btcDominance.toFixed(1)}% — altcoin risk elevated`);
+      confidence -= 1;
+    }
+
+    if (currentFNG < 20) {
+      reasons.push(`Extreme fear (${currentFNG}) — potential reversal zone`);
+      recommendation = 'BUY';
+      confidence += 1;
+    } else if (currentFNG > 80) {
+      reasons.push(`Extreme greed (${currentFNG}) — caution, reduce size`);
+      recommendation = 'SELL';
+      confidence -= 1;
+    }
+
+    if (indicators) {
+      if (indicators.trend === 'UPTREND') {
+        reasons.push('Strong uptrend: EMA20 > EMA50');
+        if (recommendation !== 'SELL') recommendation = 'BUY';
+        confidence += 1;
+      } else if (indicators.trend === 'DOWNTREND') {
+        reasons.push('Downtrend: EMA20 < EMA50');
+        if (recommendation !== 'BUY') recommendation = 'SELL';
+        confidence -= 1;
+      }
+
+      if (indicators.rsiSignal === 'OVERSOLD') {
+        reasons.push(`RSI ${indicators.rsi} — oversold`);
+        if (recommendation !== 'SELL') recommendation = 'BUY';
+        confidence += 1;
+      } else if (indicators.rsiSignal === 'OVERBOUGHT') {
+        reasons.push(`RSI ${indicators.rsi} — overbought`);
+        if (recommendation !== 'BUY') recommendation = 'SELL';
+        confidence -= 1;
+      }
+
+      if (indicators.macdCross === 'BULLISH') {
+        reasons.push('MACD bullish crossover');
+        confidence += 1;
+      } else if (indicators.macdCross === 'BEARISH') {
+        reasons.push('MACD bearish crossover');
+        confidence -= 1;
+      }
+    }
+
+    if (volatility > 80) {
+      reasons.push(`High volatility ${volatility}% — use smaller position sizes`);
+      confidence -= 1;
+    }
+
+    confidence = Math.max(1, Math.min(10, confidence));
+
+    res.json({
+      coin,
+      symbol: coin,
+      name: coinMeta?.name || coin,
+      currentPrice,
+      change24h: +change24h,
+      volatility: +volatility,
+      liquidityScore,
+      quoteVolume: +quoteVolume,
+      onChain,
+      community,
+      fearGreed: {
+        current: currentFNG,
+        label: fngData[0]?.value_classification || 'Neutral',
+        trend: fngTrend,
+        history: fngData.map(f => ({ value: f.value, label: f.value_classification }))
+      },
+      btcDominance: +btcDominance.toFixed(1),
+      indicators,
+      recommendation,
+      confidence,
+      reasons,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

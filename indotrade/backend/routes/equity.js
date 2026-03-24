@@ -1,8 +1,10 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
+const { calculateIndicators } = require('../utils/indicators');
 const YF = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 
+// No caching - always fetch fresh data
 router.get('/quote/:symbol', async (req, res) => {
   try {
     const ticker = req.params.symbol.toUpperCase();
@@ -12,6 +14,11 @@ router.get('/quote/:symbol', async (req, res) => {
     const meta = data.chart.result[0].meta;
     const q = data.chart.result[0].indicators.quote[0];
     const ts = data.chart.result[0].timestamp;
+    const ohlcv = ts.map((t, i) => ({ time: t, open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume[i] })).filter(c => c.close !== null);
+    
+    // Calculate technical indicators
+    const indicators = ohlcv.length >= 26 ? calculateIndicators(ohlcv) : null;
+    
     res.json({
       symbol: ticker,
       price: meta.regularMarketPrice,
@@ -23,7 +30,8 @@ router.get('/quote/:symbol', async (req, res) => {
       dayLow: meta.regularMarketDayLow,
       fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
       fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
-      ohlcv: ts.map((t, i) => ({ time: t, open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume[i] })).filter(c => c.close !== null)
+      ohlcv,
+      indicators
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -53,6 +61,145 @@ router.post('/batch', async (req, res) => {
       volume: m.regularMarketVolume ?? null
     };
   }));
+});
+
+// Comprehensive Equity Analysis
+router.get('/analyze/:symbol', async (req, res) => {
+  try {
+    const ticker = req.params.symbol.toUpperCase();
+    const { data } = await axios.get(`${YF}${ticker}?interval=1d&range=1y`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000
+    });
+    
+    const meta = data.chart.result[0].meta;
+    const q = data.chart.result[0].indicators.quote[0];
+    const ts = data.chart.result[0].timestamp;
+    const ohlcv = ts.map((t, i) => ({ time: t, open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume[i] })).filter(c => c.close !== null);
+    
+    const indicators = ohlcv.length >= 26 ? calculateIndicators(ohlcv) : null;
+    const closes = ohlcv.map(c => c.close);
+    const volumes = ohlcv.map(c => c.volume);
+    
+    // Performance metrics
+    const currentPrice = meta.regularMarketPrice;
+    const yearStart = closes[0];
+    const monthAgo = closes[Math.max(0, closes.length - 22)];
+    const weekAgo = closes[Math.max(0, closes.length - 5)];
+    
+    const ytdReturn = ((currentPrice - yearStart) / yearStart * 100).toFixed(2);
+    const monthReturn = ((currentPrice - monthAgo) / monthAgo * 100).toFixed(2);
+    const weekReturn = ((currentPrice - weekAgo) / weekAgo * 100).toFixed(2);
+    
+    // Volume analysis
+    const avgVolume20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    const currentVolume = volumes[volumes.length - 1];
+    const volumeRatio = (currentVolume / avgVolume20).toFixed(2);
+    
+    // Volatility (ATR-based)
+    const atr = indicators?.atr || 0;
+    const volatilityPct = ((atr / currentPrice) * 100).toFixed(2);
+    
+    // Support/Resistance levels
+    const recentHighs = ohlcv.slice(-20).map(c => c.high);
+    const recentLows = ohlcv.slice(-20).map(c => c.low);
+    const resistance = Math.max(...recentHighs);
+    const support = Math.min(...recentLows);
+    
+    // Generate recommendation
+    let recommendation = 'HOLD';
+    let confidence = 5;
+    const reasons = [];
+    
+    if (indicators) {
+      // Trend analysis
+      if (indicators.trend === 'UPTREND') {
+        reasons.push('Strong uptrend: EMA20 > EMA50');
+        confidence += 1;
+      } else if (indicators.trend === 'DOWNTREND') {
+        reasons.push('Downtrend: EMA20 < EMA50');
+        confidence -= 1;
+      }
+      
+      // RSI analysis
+      if (indicators.rsiSignal === 'OVERSOLD') {
+        reasons.push(`RSI ${indicators.rsi} — oversold, potential reversal`);
+        recommendation = 'BUY';
+        confidence += 1;
+      } else if (indicators.rsiSignal === 'OVERBOUGHT') {
+        reasons.push(`RSI ${indicators.rsi} — overbought, caution`);
+        recommendation = 'SELL';
+        confidence -= 1;
+      }
+      
+      // MACD analysis
+      if (indicators.macdCross === 'BULLISH') {
+        reasons.push('MACD bullish crossover');
+        if (recommendation !== 'SELL') recommendation = 'BUY';
+        confidence += 1;
+      } else if (indicators.macdCross === 'BEARISH') {
+        reasons.push('MACD bearish crossover');
+        if (recommendation !== 'BUY') recommendation = 'SELL';
+        confidence -= 1;
+      }
+      
+      // Volume confirmation
+      if (indicators.volumeSignal === 'HIGH') {
+        reasons.push(`Volume ${volumeRatio}x average — strong conviction`);
+        confidence += 1;
+      } else if (indicators.volumeSignal === 'LOW') {
+        reasons.push(`Volume ${volumeRatio}x average — weak conviction`);
+        confidence -= 1;
+      }
+      
+      // Bollinger Band position
+      if (indicators.bbPosition === 'BELOW') {
+        reasons.push('Price at lower Bollinger Band — mean reversion setup');
+        if (recommendation !== 'SELL') recommendation = 'BUY';
+      } else if (indicators.bbPosition === 'ABOVE') {
+        reasons.push('Price at upper Bollinger Band — potential pullback');
+        if (recommendation !== 'BUY') recommendation = 'SELL';
+      }
+    }
+    
+    confidence = Math.max(1, Math.min(10, confidence));
+    
+    res.json({
+      symbol: ticker,
+      currentPrice,
+      previousClose: meta.previousClose,
+      change: +(currentPrice - meta.previousClose).toFixed(2),
+      changePct: +((currentPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2),
+      volume: meta.regularMarketVolume,
+      dayHigh: meta.regularMarketDayHigh,
+      dayLow: meta.regularMarketDayLow,
+      fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
+      performance: {
+        ytd: +ytdReturn,
+        month: +monthReturn,
+        week: +weekReturn
+      },
+      volumeAnalysis: {
+        current: currentVolume,
+        avg20: Math.round(avgVolume20),
+        ratio: +volumeRatio,
+        signal: indicators?.volumeSignal || 'NORMAL'
+      },
+      volatility: {
+        atr: +atr.toFixed(2),
+        pct: +volatilityPct
+      },
+      levels: {
+        resistance: +resistance.toFixed(2),
+        support: +support.toFixed(2)
+      },
+      indicators,
+      recommendation,
+      confidence,
+      reasons,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

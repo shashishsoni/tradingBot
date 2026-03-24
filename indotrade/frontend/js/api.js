@@ -45,19 +45,41 @@ const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbols })
-    })
+    }),
+    analyze: (symbol) => fetchJSON(`${API}/equity/analyze/${symbol}`)
   },
   crypto: {
+    pairs: () => fetchJSON(`${API}/crypto/pairs`),
     all: () => fetchJSON(`${API}/crypto/all`),
     global: () => fetchJSON(`${API}/crypto/global`),
-    ohlcv: (id, days=7) => fetchJSON(`${API}/crypto/ohlcv/${id}?days=${days}`)
+    ohlcv: (id, days=7) => fetchJSON(`${API}/crypto/ohlcv/${id}?days=${days}`),
+    analyze: (coin) => fetchJSON(`${API}/crypto/analyze/${coin}`)
   },
   mf: {
     watchlist: () => fetchJSON(`${API}/mf/watchlist`),
-    search: (q) => fetchJSON(`${API}/mf/search/${encodeURIComponent(q)}`)
+    search: (q) => fetchJSON(`${API}/mf/search/${encodeURIComponent(q)}`),
+    analyze: (code) => fetchJSON(`${API}/mf/analyze/${code}`)
   },
-  ipo: { list: () => fetchJSON(`${API}/ipo`) },
-  fo: { info: () => fetchJSON(`${API}/fo/info`) },
+  ipo: { 
+    list: () => fetchJSON(`${API}/ipo`),
+    analyze: (name) => fetchJSON(`${API}/ipo/analyze/${encodeURIComponent(name)}`)
+  },
+  fo: { 
+    info: () => fetchJSON(`${API}/fo/info`),
+    analyze: (symbol) => fetchJSON(`${API}/fo/analyze/${symbol}`)
+  },
+  risk: {
+    portfolio: (portfolio, capital) => fetchJSON(`${API}/risk/portfolio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ portfolio, capital })
+    }),
+    position: (position, marketData) => fetchJSON(`${API}/risk/position`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position, marketData })
+    })
+  },
   ai: {
     analyze: (marketData, assetType, capital) => {
       ensureApiBase();

@@ -339,6 +339,15 @@ select:focus, input:focus {
 .signal-badge.SELL { background-color: var(--bear); color: var(--bg); }
 .signal-badge.HOLD { background-color: var(--warn); color: var(--bg); }
 .signal-badge.NO_SIGNAL { background-color: var(--neutral); color: var(--bg); }
+.signal-badge.SUBSCRIBE { background-color: var(--bull); color: var(--bg); }
+.signal-badge.AVOID { background-color: var(--bear); color: var(--bg); }
+.signal-badge.BULLISH { background-color: var(--bull); color: var(--bg); }
+.signal-badge.BEARISH { background-color: var(--bear); color: var(--bg); }
+.signal-badge.NEUTRAL { background-color: var(--neutral); color: var(--bg); }
+.signal-badge.THETA_DECAY { background-color: var(--warn); color: var(--bg); }
+.signal-badge.HIGH { background-color: var(--bear); color: var(--bg); }
+.signal-badge.MEDIUM { background-color: var(--warn); color: var(--bg); }
+.signal-badge.LOW { background-color: var(--bull); color: var(--bg); }
 
 .signal-grid {
   display: grid;
