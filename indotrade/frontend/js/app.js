@@ -854,6 +854,194 @@ async function initApp() {
     if (isPollPaused()) return;
     runLocked('tabs', renderAllTabData);
   }, REFRESH_INTERVAL_MS.tabs);
+
+  // Populate tab dropdowns
+  populateEquitySelect();
+  populateCryptoSelect();
 }
 
-document.addEventListener('DOMContentLoaded', initApp);
+// --- Tab-specific functions ---
+
+function populateEquitySelect() {
+  const sel = document.getElementById('equity-symbol-select');
+  if (!sel) return;
+  const symbols = (typeof EQUITY_WATCHLIST !== 'undefined' ? EQUITY_WATCHLIST : []).filter(s => !s.startsWith('^'));
+  sel.innerHTML = '<option value="">Select Stock...</option>' +
+    symbols.map(s => `<option value="${s}">${s.replace('.NS', '')}</option>`).join('');
+}
+
+function populateCryptoSelect() {
+  const sel = document.getElementById('crypto-symbol-select');
+  if (!sel) return;
+  // Use crypto pairs from API or defaults
+  const pairs = (typeof ALL_CRYPTO_PAIRS !== 'undefined' && ALL_CRYPTO_PAIRS.length > 0) ? ALL_CRYPTO_PAIRS :
+    (typeof CRYPTO_WATCHLIST !== 'undefined' ? CRYPTO_WATCHLIST : ['BTC-INR', 'ETH-INR', 'SOL-INR']);
+  sel.innerHTML = '<option value="">Select Coin...</option>' +
+    pairs.map(s => `<option value="${s.split('-')[0].toLowerCase()}">${s.split('-')[0]}</option>`).join('');
+}
+
+async function analyzeEquityFromTab(symbol) {
+  const container = document.getElementById('equity-detail-container');
+  if (!container) return;
+  container.innerHTML = '<p class="placeholder-text">Analyzing ' + symbol.replace('.NS', '') + ' + AI Trade Plan loading...</p>';
+  try {
+    // 1. Technical analysis
+    const analysis = await api.equity.analyze(symbol);
+    let html = '<div class="signal-card" style="margin-top:16px;">' +
+      '<div class="signal-header"><div class="signal-badge ' + (analysis.recommendation || 'HOLD') + '">' + (analysis.recommendation || 'HOLD') + ' — ' + symbol.replace('.NS', '') + '</div>' +
+      '<div class="sig-v">Conf: ' + (analysis.confidence || 0) + '/10</div></div>' +
+      '<div class="signal-grid" style="margin-top:16px;">' +
+      '<div class="sig-kv"><span class="sig-k">Price</span><span class="sig-v">₹' + (analysis.currentPrice || 0).toLocaleString('en-IN') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Day Change</span><span class="sig-v ' + (analysis.changePct >= 0 ? 'bull-text' : 'bear-text') + '">' + (analysis.changePct >= 0 ? '+' : '') + (analysis.changePct || 0) + '%</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">YTD</span><span class="sig-v">' + (analysis.performance?.ytd || '-') + '%</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">1M</span><span class="sig-v">' + (analysis.performance?.month || '-') + '%</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">RSI</span><span class="sig-v">' + (analysis.indicators?.rsi?.toFixed(1) || '-') + ' (' + (analysis.indicators?.rsiSignal || '-') + ')</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Trend</span><span class="sig-v">' + (analysis.indicators?.trend || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">MACD</span><span class="sig-v">' + (analysis.indicators?.macdCross || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Volume</span><span class="sig-v">' + (analysis.volumeAnalysis?.ratio || '-') + 'x</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Support</span><span class="sig-v">₹' + (analysis.levels?.support || 0).toLocaleString('en-IN') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Resistance</span><span class="sig-v">₹' + (analysis.levels?.resistance || 0).toLocaleString('en-IN') + '</span></div>' +
+      '</div>';
+    if (analysis.reasons && analysis.reasons.length > 0) {
+      html += '<div style="margin-top:12px;"><div class="sig-k">Reasons</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+        analysis.reasons.map(r => '<li>' + r + '</li>').join('') + '</ul></div>';
+    }
+    html += '<div id="equity-ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Trade Plan...</div></div>';
+    container.innerHTML = html;
+
+    // 2. AI Trade Plan
+    try {
+      const ohlcv = analysis.ohlcv || [];
+      const { signal } = await api.ai.analyze({ symbol, price: analysis.currentPrice || 0, ohlcv }, 'EQUITY', 100000);
+      const planEl = document.getElementById('equity-ai-plan-loading');
+      if (planEl) planEl.outerHTML = renderAITradePlanInline(signal);
+    } catch (e) {
+      const planEl = document.getElementById('equity-ai-plan-loading');
+      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Trade Plan unavailable: ' + e.message + '</p>';
+    }
+  } catch (e) {
+    container.innerHTML = '<p class="bear-text">Analysis failed: ' + e.message + '</p>';
+  }
+}
+
+async function analyzeCryptoFromTab(coin) {
+  const container = document.getElementById('crypto-detail-container');
+  if (!container) return;
+  container.innerHTML = '<p class="placeholder-text">Analyzing ' + coin.toUpperCase() + ' + AI Trade Plan loading...</p>';
+  try {
+    const analysis = await api.crypto.analyze(coin);
+    let html = '<div class="signal-card" style="margin-top:16px;">' +
+      '<div class="signal-header"><div class="signal-badge ' + (analysis.recommendation || 'HOLD') + '">' + (analysis.recommendation || 'HOLD') + ' — ' + (analysis.name || coin.toUpperCase()) + '</div>' +
+      '<div class="sig-v">Conf: ' + (analysis.confidence || 0) + '/10</div></div>' +
+      '<div class="signal-grid" style="margin-top:16px;">' +
+      '<div class="sig-kv"><span class="sig-k">Price</span><span class="sig-v">₹' + (analysis.currentPrice || 0).toLocaleString('en-IN') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">24h Change</span><span class="sig-v ' + (analysis.change24h >= 0 ? 'bull-text' : 'bear-text') + '">' + (analysis.change24h >= 0 ? '+' : '') + (analysis.change24h || 0) + '%</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Volatility</span><span class="sig-v">' + (analysis.volatility || '-') + '%</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Liquidity</span><span class="sig-v">' + (analysis.liquidityScore || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">RSI</span><span class="sig-v">' + (analysis.indicators?.rsi?.toFixed(1) || '-') + ' (' + (analysis.indicators?.rsiSignal || '-') + ')</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Trend</span><span class="sig-v">' + (analysis.indicators?.trend || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">MACD</span><span class="sig-v">' + (analysis.indicators?.macdCross || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Fear & Greed</span><span class="sig-v">' + (analysis.fearGreed?.current || '-') + ' (' + (analysis.fearGreed?.label || '-') + ')</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">BTC Dominance</span><span class="sig-v">' + (analysis.btcDominance || '-') + '%</span></div>' +
+      '</div>';
+    if (analysis.reasons && analysis.reasons.length > 0) {
+      html += '<div style="margin-top:12px;"><div class="sig-k">Reasons</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' +
+        analysis.reasons.map(r => '<li>' + r + '</li>').join('') + '</ul></div>';
+    }
+    html += '<div id="crypto-ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Trade Plan...</div></div>';
+    container.innerHTML = html;
+
+    try {
+      const pairKey = coin.toUpperCase() + '-INR';
+      const price = analysis.currentPrice || 0;
+      const ohlcv = analysis.ohlcv || [];
+      if (price > 0) {
+        const { signal } = await api.ai.analyze({ symbol: pairKey, price, ohlcv, globalStats: analysis.globalStats || {} }, 'CRYPTO', 100000);
+        const planEl = document.getElementById('crypto-ai-plan-loading');
+        if (planEl) planEl.outerHTML = renderAITradePlanInline(signal);
+      }
+    } catch (e) {
+      const planEl = document.getElementById('crypto-ai-plan-loading');
+      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Trade Plan unavailable: ' + e.message + '</p>';
+    }
+  } catch (e) {
+    container.innerHTML = '<p class="bear-text">Analysis failed: ' + e.message + '</p>';
+  }
+}
+
+async function loadRiskEngine() {
+  const btn = document.getElementById('btn-risk-assess');
+  const dataContainer = document.getElementById('risk-market-data');
+  const assessContainer = document.getElementById('risk-assessment-container');
+  if (!assessContainer) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Assessing... (15-30s)'; }
+
+  try {
+    const result = await api.ai.riskEngine();
+    const md = result.marketData || {};
+    const a = result.assessment || {};
+
+    // Market data cards
+    if (dataContainer) {
+      dataContainer.innerHTML = '<div class="signal-grid">' +
+        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">NIFTY 50</div><div class="sig-v" style="font-size:1.2em;">' + (md.nifty || '-') + '</div></div>' +
+        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">BANKNIFTY</div><div class="sig-v" style="font-size:1.2em;">' + (md.banknifty || '-') + '</div></div>' +
+        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">India VIX</div><div class="sig-v" style="font-size:1.2em;">' + (md.indiaVIX || '-') + '</div></div>' +
+        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">Crude Oil</div><div class="sig-v" style="font-size:1.2em;">' + (md.crudeOil || '-') + '</div></div>' +
+        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">USD/INR</div><div class="sig-v" style="font-size:1.2em;">' + (md.usdInr || '-') + '</div></div>' +
+        '<div class="signal-card HOLD" style="flex:1;"><div class="sig-k">F&O Expiry</div><div class="sig-v" style="font-size:1.2em;">' + (md.fnoExpiry || '-') + '</div></div>' +
+        '</div>';
+    }
+
+    // Risk assessment
+    const riskScore = a.marketRiskScore || 5;
+    const riskClass = riskScore > 7 ? 'SELL' : riskScore > 4 ? 'HOLD' : 'BUY';
+    const recClass = a.recommendation === 'HOLD_CASH' || a.recommendation === 'HEDGE' ? 'SELL' : a.recommendation === 'AGGRESSIVE_BUY' ? 'BUY' : 'HOLD';
+
+    assessContainer.innerHTML = '<div class="signal-card ' + riskClass + '">' +
+      '<div class="signal-header">' +
+      '<div class="signal-badge ' + recClass + '">' + (a.signal || 'NEUTRAL') + ' — ' + (a.recommendation || 'HOLD') + '</div>' +
+      '<div class="sig-v">Risk Score: ' + riskScore + '/10</div>' +
+      '</div>' +
+      '<div class="signal-grid" style="margin-top:16px;">' +
+      '<div class="sig-kv"><span class="sig-k">FII Flow</span><span class="sig-v">' + (a.fiiFlow || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">DII Flow</span><span class="sig-v">' + (a.diiFlow || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">RBI Stance</span><span class="sig-v">' + (a.rbiStance || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Fed Stance</span><span class="sig-v">' + (a.fedStance || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">VIX Signal</span><span class="sig-v">' + (a.vixAssessment || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">Crude Impact</span><span class="sig-v">' + (a.crudeOilImpact || '-') + '</span></div>' +
+      '<div class="sig-kv"><span class="sig-k">NIFTY Outlook</span><span class="sig-v">' + (a.niftyOutlook || '-') + '</span></div>' +
+      '</div>' +
+      (a.expiryWarning ? '<div style="margin-top:12px;padding:8px 12px;background:rgba(255,68,102,0.1);border-radius:6px;"><span class="bear-text">' + a.expiryWarning + '</span></div>' : '') +
+      (a.sectorRotation ? '<div style="margin-top:12px;"><div class="sig-k">Sector Rotation</div><div class="sig-v">Leading: ' + (a.sectorRotation[0] || '-') + ' | Lagging: ' + (a.sectorRotation[1] || '-') + '</div></div>' : '') +
+      (a.riskFactors && a.riskFactors.length > 0 ? '<div style="margin-top:12px;"><div class="sig-k">Risk Factors</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + a.riskFactors.map(r => '<li class="bear-text">' + r + '</li>').join('') + '</ul></div>' : '') +
+      (a.historicalPrecedent && a.historicalPrecedent.length > 0 ? '<div style="margin-top:12px;"><div class="sig-k">Historical Precedent</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + a.historicalPrecedent.map(h => '<li>' + h + '</li>').join('') + '</ul></div>' : '') +
+      (a.actionableAdvice ? '<div style="margin-top:12px;padding:8px 12px;background:rgba(0,212,170,0.1);border-radius:6px;"><strong>Action:</strong> ' + a.actionableAdvice + '</div>' : '') +
+      '</div>';
+  } catch (e) {
+    assessContainer.innerHTML = '<p class="bear-text">Risk assessment failed: ' + e.message + '</p>';
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Assess Market Risk'; }
+}
+
+function renderAITradePlanInline(s) {
+  if (!s || s.signal === 'NO_SIGNAL') {
+    return '<div class="signal-card HOLD" style="margin-top:16px;"><div class="signal-badge HOLD">AI Trade Plan (Llama)</div><p class="muted" style="padding:8px 0;">No signal — insufficient confluences or neutral RSI zone.</p></div>';
+  }
+  var cls = s.signal === 'BUY' ? 'BUY' : s.signal === 'SELL' ? 'SELL' : 'HOLD';
+  return '<div class="signal-card ' + cls + '" style="margin-top:16px;">' +
+    '<div class="signal-header"><div class="signal-badge ' + cls + '">AI Trade Plan: ' + s.signal + '</div><div class="sig-v">Conf: ' + (s.confidence || 0) + '/10</div></div>' +
+    '<div class="signal-grid" style="margin-top:12px;">' +
+    '<div class="sig-kv"><span class="sig-k">Timeframe</span><span class="sig-v">' + (s.timeframe || '-') + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Best Window</span><span class="sig-v">' + (s.bestWindow || '-') + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Entry Zone</span><span class="sig-v">₹' + (s.entryZone?.low || 0) + ' - ₹' + (s.entryZone?.high || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Stop Loss</span><span class="sig-v">₹' + (s.stopLoss || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Target 1</span><span class="sig-v">₹' + (s.target1 || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Target 2</span><span class="sig-v">₹' + (s.target2 || 0) + '</span></div>' +
+    '<div class="sig-kv"><span class="sig-k">Risk/Reward</span><span class="sig-v">' + (s.riskReward || '-') + '</span></div>' +
+    '</div>' +
+    (s.confluences && s.confluences.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Confluences</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.confluences.map(c => '<li>' + c + '</li>').join('') + '</ul></div>' : '') +
+    (s.riskWarnings && s.riskWarnings.length > 0 ? '<div style="margin-top:8px;"><div class="sig-k">Warnings</div><ul style="margin:4px 0;padding-left:16px;font-size:12px;">' + s.riskWarnings.map(w => '<li class="bear-text">' + w + '</li>').join('') + '</ul></div>' : '') +
+    '</div>';
+}

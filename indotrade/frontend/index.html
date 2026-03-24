@@ -178,12 +178,65 @@
                 </div>
 
                 <!-- Placeholders for other tabs -->
-                <div id="tab-equity" class="tab-pane"><h2>Equity Analysis</h2><p>Select assets from Dashboard to analyze.</p></div>
-                <div id="tab-fo" class="tab-pane"><h2 id="fo-expiry-warning">F&O Options Analysis</h2><div id="fo-info-container"></div></div>
-                <div id="tab-crypto" class="tab-pane"><h2>Crypto Analysis</h2><div id="crypto-global-container"></div></div>
-                <div id="tab-mf" class="tab-pane"><h2>Mutual Funds Watchlist</h2><div id="mf-container"></div></div>
-                <div id="tab-ipo" class="tab-pane"><h2>Recent & Upcoming IPOs</h2><div id="ipo-container"></div></div>
-                <div id="tab-risk" class="tab-pane"><h2>Risk Engine Defaults</h2><p>Risk per trade capped at 2% automatically via AI configuration.</p></div>
+                <!-- Equity Analysis Tab -->
+                <div id="tab-equity" class="tab-pane">
+                    <div class="flex-row" style="margin-bottom:16px;">
+                        <h2 style="margin:0;">Equity Analysis <span class="muted" style="font-size:12px;font-weight:400;">(NSE/BSE)</span></h2>
+                        <select id="equity-symbol-select" class="watchlist-search-input" style="width:auto;padding:6px 12px;" onchange="if(this.value) analyzeEquityFromTab(this.value)">
+                            <option value="">Select Stock...</option>
+                        </select>
+                    </div>
+                    <div id="equity-market-context" style="margin-bottom:16px;"></div>
+                    <div id="equity-detail-container"></div>
+                </div>
+
+                <!-- F&O Options Tab -->
+                <div id="tab-fo" class="tab-pane">
+                    <div class="flex-row" style="margin-bottom:16px;">
+                        <h2 style="margin:0;">F&O Options Analysis</h2>
+                        <div id="fo-expiry-badge"></div>
+                    </div>
+                    <div id="fo-expiry-warning" style="margin-bottom:16px;"></div>
+                    <div id="fo-info-container"></div>
+                    <div id="fo-detail-container"></div>
+                </div>
+
+                <!-- Crypto Analysis Tab -->
+                <div id="tab-crypto" class="tab-pane">
+                    <div class="flex-row" style="margin-bottom:16px;">
+                        <h2 style="margin:0;">Crypto Analysis <span class="muted" style="font-size:12px;font-weight:400;">(INR Pairs)</span></h2>
+                        <select id="crypto-symbol-select" class="watchlist-search-input" style="width:auto;padding:6px 12px;" onchange="if(this.value) analyzeCryptoFromTab(this.value)">
+                            <option value="">Select Coin...</option>
+                        </select>
+                    </div>
+                    <div id="crypto-global-container" style="margin-bottom:16px;"></div>
+                    <div id="crypto-top-movers" style="margin-bottom:16px;"></div>
+                    <div id="crypto-detail-container"></div>
+                </div>
+
+                <!-- Mutual Funds Tab -->
+                <div id="tab-mf" class="tab-pane">
+                    <h2>Mutual Funds Watchlist</h2>
+                    <div id="mf-container"></div>
+                    <div id="mf-detail-container"></div>
+                </div>
+
+                <!-- IPO Tab -->
+                <div id="tab-ipo" class="tab-pane">
+                    <h2>Recent & Upcoming IPOs</h2>
+                    <div id="ipo-container"></div>
+                    <div id="ipo-detail-container"></div>
+                </div>
+
+                <!-- Risk Engine Tab -->
+                <div id="tab-risk" class="tab-pane">
+                    <div class="flex-row" style="margin-bottom:16px;">
+                        <h2 style="margin:0;">Risk Engine <span class="muted" style="font-size:12px;font-weight:400;">(Macro Assessment)</span></h2>
+                        <button class="btn-primary" onclick="loadRiskEngine()" id="btn-risk-assess">Assess Market Risk</button>
+                    </div>
+                    <div id="risk-market-data" style="margin-bottom:16px;"></div>
+                    <div id="risk-assessment-container"></div>
+                </div>
             </div>
         </main>
     </div>
