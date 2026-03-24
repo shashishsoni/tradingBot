@@ -142,134 +142,328 @@ function fmtPct(pct) {
 }
 
 async function renderEquityTabData() {
-  const container = document.getElementById('tab-equity');
-  if (!container) return;
-  if (!container.dataset.loaded) {
-    container.innerHTML = '<h2>Equity Analysis</h2><p class="placeholder-text">Loading...</p>';
-    container.dataset.loaded = '1';
-  }
+  const detailContainer = document.getElementById('equity-detail-container');
+  const contextContainer = document.getElementById('equity-market-context');
+  const equityContainer = document.getElementById('tab-equity');
+  if (!equityContainer) return;
+
   try {
     const symbols = (typeof EQUITY_WATCHLIST !== 'undefined' ? EQUITY_WATCHLIST : ['^NSEI', '^BSESN']);
     const eqData = await api.equity.batch(symbols);
     const valid = eqData.filter(d => !d.error && Number.isFinite(Number(d.price)));
-    const top = valid.slice(0, 12);
-    const rows = top.map(d => {
-      const pct = Number(d.changePct);
-      const pctCell = Number.isFinite(pct)
-        ? `<span class="${pct >= 0 ? 'bull-text' : 'bear-text'}">${pct >= 0 ? '+' : ''}${pct}%</span>`
-        : '—';
-      return [d.symbol.replace('.NS', ''), `₹${Number(d.price).toLocaleString('en-IN')}`, pctCell];
-    });
-    const buyable = valid.filter(d => Number(d.changePct) > 0).sort((a, b) => Number(b.changePct) - Number(a.changePct));
-    const best = buyable[0];
-    const detail = best
-      ? `<div class="signal-card" style="margin-top:16px;">
-          <div class="sig-k"><strong>Best possibility (momentum-based)</strong></div>
-          <p><strong>${best.symbol.replace('.NS','')}</strong> at <strong>₹${Number(best.price).toLocaleString('en-IN')}</strong> with change <strong>${fmtPct(best.changePct)}</strong>.</p>
-          <p>Reason: strongest positive session momentum among tracked equities. Wait for pullback near support before entry; keep stop-loss strict.</p>
-          <button class="btn-action" onclick="analyzeEquityDetail('${best.symbol}')" style="margin-top:8px;">Detailed Analysis</button>
-        </div>`
-      : `<div class="signal-card" style="margin-top:16px;"><p>No strong positive momentum right now. Prefer HOLD / wait-for-setup.</p></div>`;
+    const indices = valid.filter(d => d.symbol.startsWith('^'));
+    const stocks = valid.filter(d => !d.symbol.startsWith('^'));
 
-    container.innerHTML = `<h2>Equity Analysis</h2>${renderBasicTable(['Asset', 'Price', 'Change'], rows)}${detail}<div id="equity-detail-container"></div>`;
+    // Market context cards with modern styling
+    if (contextContainer) {
+      contextContainer.innerHTML = '<div class="market-cards-grid">' + indices.map(idx => {
+        const pct = Number(idx.changePct);
+        const isPositive = pct >= 0;
+        return `<div class="market-card-modern ${isPositive ? 'bull' : 'bear'}">
+          <div class="mc-icon">${isPositive ? '📈' : '📉'}</div>
+          <div class="mc-label">${idx.symbol.replace('^', '')}</div>
+          <div class="mc-value">₹${Number(idx.price).toLocaleString('en-IN')}</div>
+          <div class="mc-change ${isPositive ? 'bull-text' : 'bear-text'}">
+            <span class="mc-arrow">${isPositive ? '▲' : '▼'}</span>
+            ${isPositive ? '+' : ''}${pct || 0}%
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    // Populate dropdown with modern styling
+    const sel = document.getElementById('equity-symbol-select');
+    if (sel && sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">Select Stock...</option>' +
+        stocks.map(s => `<option value="${s.symbol}">${s.symbol.replace('.NS', '')}</option>`).join('');
+    }
+
+    // Best performer
+    const sorted = stocks.filter(s => Number.isFinite(Number(s.changePct))).sort((a, b) => Number(b.changePct) - Number(a.changePct));
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+    const positiveCount = stocks.filter(s => Number(s.changePct) > 0).length;
+    const negativeCount = stocks.filter(s => Number(s.changePct) < 0).length;
+
+    // Quick stats with modern card design
+    if (detailContainer && !detailContainer.innerHTML.includes('analysis-card')) {
+      detailContainer.innerHTML = `
+        <div class="analysis-card modern">
+          <div class="ac-header">
+            <span class="ac-icon">📊</span>
+            <span class="ac-title">Market Snapshot</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card gainer">
+              <div class="stat-icon">🚀</div>
+              <div class="stat-label">Top Gainer</div>
+              <div class="stat-value bull-text">${best ? best.symbol.replace('.NS', '') + ' ' + fmtPct(best.changePct) : '-'}</div>
+            </div>
+            <div class="stat-card loser">
+              <div class="stat-icon">📉</div>
+              <div class="stat-label">Top Loser</div>
+              <div class="stat-value bear-text">${worst ? worst.symbol.replace('.NS', '') + ' ' + fmtPct(worst.changePct) : '-'}</div>
+            </div>
+            <div class="stat-card total">
+              <div class="stat-icon">📋</div>
+              <div class="stat-label">Stocks Tracked</div>
+              <div class="stat-value">${stocks.length}</div>
+            </div>
+            <div class="stat-card positive">
+              <div class="stat-icon">✅</div>
+              <div class="stat-label">Positive</div>
+              <div class="stat-value bull-text">${positiveCount}</div>
+            </div>
+            <div class="stat-card negative">
+              <div class="stat-icon">❌</div>
+              <div class="stat-label">Negative</div>
+              <div class="stat-value bear-text">${negativeCount}</div>
+            </div>
+          </div>
+          <div class="hint-box">
+            <span class="hint-icon">💡</span>
+            <span>Select a stock from the dropdown above for detailed AI analysis with entry, stop loss, targets, and policy impact.</span>
+          </div>
+        </div>`;
+    }
   } catch (e) {
-    container.innerHTML = '<h2>Equity Analysis</h2><p class="bear-text">Unable to load equity data.</p>';
+    if (contextContainer) contextContainer.innerHTML = '<div class="error-card"><span class="error-icon">⚠️</span><span>Unable to load equity data.</span></div>';
   }
 }
 
 async function analyzeEquityDetail(symbol) {
   const detailContainer = document.getElementById('equity-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing...</p>';
+  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Analyzing ${symbol.replace('.NS','')} + AI Trade Plan loading...</span></div>`;
   try {
     const analysis = await api.equity.analyze(symbol);
-    const recClass = analysis.recommendation === 'BUY' ? 'bull-text' : analysis.recommendation === 'SELL' ? 'bear-text' : '';
-    detailContainer.innerHTML = `
-      <div class="signal-card" style="margin-top:16px;">
-        <div class="signal-header">
-          <div class="signal-badge ${analysis.recommendation}">${analysis.recommendation} — ${analysis.symbol}</div>
-          <div class="sig-v">Conf: ${analysis.confidence}/10</div>
-        </div>
-        <div class="confidence-bar-bg"><div class="confidence-bar-fill" style="width: ${analysis.confidence * 10}%"></div></div>
-        <div class="signal-grid" style="margin-top:16px;">
-          <div class="sig-kv"><span class="sig-k">Current Price</span><span class="sig-v">₹${analysis.currentPrice?.toLocaleString('en-IN')}</span></div>
-          <div class="sig-kv"><span class="sig-k">Day Change</span><span class="sig-v ${analysis.changePct >= 0 ? 'bull-text' : 'bear-text'}">${analysis.changePct >= 0 ? '+' : ''}${analysis.changePct}%</span></div>
-          <div class="sig-kv"><span class="sig-k">YTD Return</span><span class="sig-v">${analysis.performance?.ytd}%</span></div>
-          <div class="sig-kv"><span class="sig-k">1M Return</span><span class="sig-v">${analysis.performance?.month}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Volatility (ATR%)</span><span class="sig-v">${analysis.volatility?.pct}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Volume Ratio</span><span class="sig-v">${analysis.volumeAnalysis?.ratio}x</span></div>
-          <div class="sig-kv"><span class="sig-k">Support</span><span class="sig-v">₹${analysis.levels?.support?.toLocaleString('en-IN')}</span></div>
-          <div class="sig-kv"><span class="sig-k">Resistance</span><span class="sig-v">₹${analysis.levels?.resistance?.toLocaleString('en-IN')}</span></div>
-        </div>
-        ${analysis.indicators ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">Technical Indicators</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">RSI</span><span class="sig-v">${analysis.indicators.rsi} (${analysis.indicators.rsiSignal})</span></div>
-            <div class="sig-kv"><span class="sig-k">Trend</span><span class="sig-v">${analysis.indicators.trend}</span></div>
-            <div class="sig-kv"><span class="sig-k">MACD</span><span class="sig-v">${analysis.indicators.macdCross}</span></div>
-            <div class="sig-kv"><span class="sig-k">BB Position</span><span class="sig-v">${analysis.indicators.bbPosition}</span></div>
+    const rec = analysis.recommendation || 'HOLD';
+    const conf = analysis.confidence || 0;
+    const recClass = rec === 'BUY' ? 'bull' : rec === 'SELL' ? 'bear' : 'neutral';
+
+    let html = `
+      <div class="analysis-card modern">
+        <div class="ac-header">
+          <div class="ac-title-row">
+            <span class="ac-icon">📈</span>
+            <span class="ac-title">${(analysis.symbol || symbol).replace('.NS','')} — Technical Analysis</span>
           </div>
-        </div>` : ''}
-        <div class="confluences-list" style="margin-top:16px;">
-          <div class="sig-k">Analysis Reasons</div>
-          <ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
+          <span class="ac-badge modern ${recClass}">${rec} | Conf: ${conf}/10</span>
         </div>
-      </div>`;
+
+        <!-- Price & Performance -->
+        <div class="section-header modern">
+          <span class="section-icon">💰</span>
+          <span>Price & Performance</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Price</span>
+            <span class="di-value">₹${(analysis.currentPrice || 0).toLocaleString('en-IN')}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Day Change</span>
+            <span class="di-value ${(analysis.changePct || 0) >= 0 ? 'bull-text' : 'bear-text'}">
+              ${(analysis.changePct || 0) >= 0 ? '▲' : '▼'} ${(analysis.changePct || 0) >= 0 ? '+' : ''}${analysis.changePct || 0}%
+            </span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">YTD Return</span>
+            <span class="di-value ${(analysis.performance?.ytd || 0) >= 0 ? 'bull-text' : 'bear-text'}">
+              ${(analysis.performance?.ytd || 0) >= 0 ? '▲' : '▼'} ${analysis.performance?.ytd || '-'}%
+            </span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">1M Return</span>
+            <span class="di-value ${(analysis.performance?.month || 0) >= 0 ? 'bull-text' : 'bear-text'}">
+              ${(analysis.performance?.month || 0) >= 0 ? '▲' : '▼'} ${analysis.performance?.month || '-'}%
+            </span>
+          </div>
+        </div>
+
+        <!-- Risk Metrics -->
+        <div class="section-header modern">
+          <span class="section-icon">⚡</span>
+          <span>Risk Metrics</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Volatility (ATR%)</span>
+            <span class="di-value">${analysis.volatility?.pct || '-'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Volume Ratio</span>
+            <span class="di-value">${analysis.volumeAnalysis?.ratio || '-'}x</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Support</span>
+            <span class="di-value bull-text">₹${(analysis.levels?.support || 0).toLocaleString('en-IN')}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Resistance</span>
+            <span class="di-value bear-text">₹${(analysis.levels?.resistance || 0).toLocaleString('en-IN')}</span>
+          </div>
+        </div>`;
+
+    // Technical Indicators
+    if (analysis.indicators) {
+      html += `
+        <div class="section-header modern">
+          <span class="section-icon">📊</span>
+          <span>Technical Indicators</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">RSI</span>
+            <span class="di-value">${analysis.indicators.rsi?.toFixed(1) || '-'} (${analysis.indicators.rsiSignal || '-'})</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Trend</span>
+            <span class="di-value">${analysis.indicators.trend || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">MACD</span>
+            <span class="di-value">${analysis.indicators.macdCross || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Bollinger</span>
+            <span class="di-value">${analysis.indicators.bbPosition || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">EMA 20</span>
+            <span class="di-value">₹${analysis.indicators.ema20?.toFixed(2) || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">EMA 50</span>
+            <span class="di-value">₹${analysis.indicators.ema50?.toFixed(2) || '-'}</span>
+          </div>
+        </div>`;
+    }
+
+    // Analysis Reasons
+    if (analysis.reasons && analysis.reasons.length > 0) {
+      html += `
+        <div class="section-header modern">
+          <span class="section-icon">🔍</span>
+          <span>Analysis Reasons</span>
+        </div>
+        <ul class="reason-list modern">
+          ${analysis.reasons.map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('')}
+        </ul>`;
+    }
+
+    html += `<div id="equity-ai-plan-loading" class="loading-card" style="margin-top:16px;"><div class="loading-spinner"></div><span>Generating AI Trade Plan...</span></div></div>`;
+
+    detailContainer.innerHTML = html;
+
+    // AI Trade Plan
+    try {
+      const ohlcv = analysis.ohlcv || [];
+      const { signal } = await api.ai.analyze({ symbol, price: analysis.currentPrice || 0, ohlcv }, 'EQUITY', 100000);
+      const planEl = document.getElementById('equity-ai-plan-loading');
+      if (planEl) planEl.outerHTML = renderAITradePlanInline(signal);
+    } catch (e) {
+      const planEl = document.getElementById('equity-ai-plan-loading');
+      if (planEl) planEl.outerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>AI Trade Plan unavailable: ${e.message}</span></div>`;
+    }
   } catch (e) {
-    detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Analysis failed: ${e.message}</span></div>`;
   }
 }
 
 async function renderFoTabData() {
-  const title = document.getElementById('fo-expiry-warning');
+  const warningContainer = document.getElementById('fo-expiry-warning');
   const container = document.getElementById('fo-info-container');
   if (!container) return;
-  if (!container.dataset.loaded) {
-    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
-    container.dataset.loaded = '1';
-  }
+
   try {
     const info = await api.fo.info();
-    if (title) title.innerText = info.expiryWarning || 'F&O Options Analysis';
-    const rows = [
-      ['Expiry Date', info.expiryDate || '—'],
-      ['Days To Expiry', Number.isFinite(Number(info.daysToExpiry)) ? info.daysToExpiry : '—'],
-      ['NIFTY', Number.isFinite(Number(info.nifty)) ? `₹${Number(info.nifty).toLocaleString('en-IN')}` : '—'],
-      ['BANKNIFTY', Number.isFinite(Number(info.banknifty)) ? `₹${Number(info.banknifty).toLocaleString('en-IN')}` : '—']
-    ];
+
+    // Expiry warning card with modern styling
+    if (warningContainer) {
+      const daysLeft = Number(info.daysToExpiry) || 0;
+      const riskLevel = daysLeft <= 2 ? 'high' : daysLeft <= 5 ? 'medium' : 'low';
+      const riskLabel = daysLeft <= 2 ? 'HIGH RISK' : daysLeft <= 5 ? 'ELEVATED' : 'NORMAL';
+      const riskIcon = daysLeft <= 2 ? '🔴' : daysLeft <= 5 ? '🟡' : '🟢';
+      
+      warningContainer.innerHTML = `
+        <div class="market-cards-grid">
+          <div class="market-card-modern">
+            <div class="mc-icon">📅</div>
+            <div class="mc-label">Expiry Date</div>
+            <div class="mc-value">${info.expiryDate || '-'}</div>
+          </div>
+          <div class="market-card-modern ${riskLevel}">
+            <div class="mc-icon">⏰</div>
+            <div class="mc-label">Days to Expiry</div>
+            <div class="mc-value">${Number.isFinite(daysLeft) ? daysLeft : '-'}</div>
+          </div>
+          <div class="market-card-modern">
+            <div class="mc-icon">📈</div>
+            <div class="mc-label">NIFTY 50</div>
+            <div class="mc-value">₹${Number(info.nifty) ? Number(info.nifty).toLocaleString('en-IN') : '-'}</div>
+          </div>
+          <div class="market-card-modern">
+            <div class="mc-icon">📊</div>
+            <div class="mc-label">BANKNIFTY</div>
+            <div class="mc-value">₹${Number(info.banknifty) ? Number(info.banknifty).toLocaleString('en-IN') : '-'}</div>
+          </div>
+          <div class="market-card-modern ${riskLevel}">
+            <div class="mc-icon">${riskIcon}</div>
+            <div class="mc-label">Volatility Risk</div>
+            <div class="mc-value ${riskLevel === 'high' ? 'bear-text' : riskLevel === 'medium' ? 'bear-text' : 'bull-text'}">${riskLabel}</div>
+          </div>
+        </div>`;
+    }
+
     const guidance = info.isExpiryWeek
-      ? '<p class="bear-text" style="margin-top:10px;">Expiry week risk is high. Reduce position size by 40-50%, avoid revenge trades.</p>'
-      : '<p style="margin-top:10px;">Non-expiry week: normal volatility profile. Use strict RR >= 1:1.5.</p>';
-    
-    const analyzeButtons = `
-      <div style="margin-top:16px;">
-        <button class="btn-action" onclick="analyzeFoDetail('NIFTY')" style="margin-right:8px;">Analyze NIFTY Options</button>
-        <button class="btn-action" onclick="analyzeFoDetail('BANKNIFTY')">Analyze BANKNIFTY Options</button>
+      ? `<div class="action-box modern warning">
+          <div class="action-icon">⚠️</div>
+          <div class="action-content">
+            <strong>F&O Expiry Week:</strong> Reduce position size by 40-50%. Avoid revenge trades. Keep strict stop loss. Elevated gamma risk near expiry.
+          </div>
+        </div>`
+      : `<div class="action-box modern success">
+          <div class="action-icon">✅</div>
+          <div class="action-content">
+            Non-expiry week: Normal volatility profile. Use strict risk/reward >= 1:1.5. Monitor OI buildup at key strikes.
+          </div>
+        </div>`;
+
+    container.innerHTML = `
+      ${guidance}
+      <div class="button-group" style="margin-top:16px;">
+        <button class="btn-action modern" onclick="analyzeFoDetail('NIFTY')">
+          <span class="btn-icon">📊</span>
+          <span>Analyze NIFTY Options</span>
+        </button>
+        <button class="btn-action modern" onclick="analyzeFoDetail('BANKNIFTY')">
+          <span class="btn-icon">📈</span>
+          <span>Analyze BANKNIFTY Options</span>
+        </button>
       </div>
-    `;
-    
-    container.innerHTML = renderBasicTable(['Metric', 'Value'], rows) + guidance + analyzeButtons + '<div id="fo-detail-container"></div>';
+      <div id="fo-detail-container" style="margin-top:16px;"></div>`;
   } catch (e) {
-    if (title) title.innerText = 'F&O Options Analysis';
-    container.innerHTML = '<p class="bear-text">Unable to load F&O data.</p>';
+    container.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>Unable to load F&O data.</span></div>`;
   }
 }
 
 async function analyzeFoDetail(symbol) {
   const detailContainer = document.getElementById('fo-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing options chain...</p>';
+  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Analyzing ${symbol} options chain...</span></div>`;
   try {
     const analysis = await api.fo.analyze(symbol);
-    const strategyClass = analysis.strategy?.type === 'BULLISH' ? 'bull-text' : analysis.strategy?.type === 'BEARISH' ? 'bear-text' : '';
-    
+
     let optionsChainHtml = '';
     if (analysis.optionsChain && analysis.optionsChain.length > 0) {
       optionsChainHtml = `
-        <div style="margin-top:16px; overflow-x:auto;">
-          <div class="sig-k">Options Chain (ATM ± 5 strikes)</div>
-          <table style="width:100%; font-size:12px; margin-top:8px;">
+        <div class="section-header modern">
+          <span class="section-icon">📊</span>
+          <span>Options Chain (ATM ± 5 strikes)</span>
+        </div>
+        <div class="table-container modern">
+          <table class="options-table">
             <thead>
               <tr>
                 <th>Call OI</th>
@@ -282,148 +476,305 @@ async function analyzeFoDetail(symbol) {
               </tr>
             </thead>
             <tbody>
-              ${analysis.optionsChain.map(o => `
-                <tr style="${o.strike === analysis.maxPain ? 'background:rgba(255,200,0,0.1);' : ''}">
-                  <td>${(o.call.oi/1000).toFixed(0)}K</td>
+              ${analysis.optionsChain.map(function(o) {
+                var isMaxPain = o.strike === analysis.maxPain;
+                return `<tr class="${isMaxPain ? 'max-pain-row' : ''}">
+                  <td>${(o.call.oi / 1000).toFixed(0)}K</td>
                   <td>₹${o.call.price}</td>
                   <td>${o.call.greeks.delta}</td>
-                  <td><strong>${o.strike}</strong>${o.strike === analysis.maxPain ? ' ⭐' : ''}</td>
+                  <td><strong>${o.strike}</strong>${isMaxPain ? ' ⭐' : ''}</td>
                   <td>${o.put.greeks.delta}</td>
                   <td>₹${o.put.price}</td>
-                  <td>${(o.put.oi/1000).toFixed(0)}K</td>
-                </tr>
-              `).join('')}
+                  <td>${(o.put.oi / 1000).toFixed(0)}K</td>
+                </tr>`;
+              }).join('')}
             </tbody>
           </table>
-          <p style="font-size:11px; margin-top:4px;">⭐ = Max Pain strike</p>
-        </div>
-      `;
+          <p class="table-note">⭐ = Max Pain strike</p>
+        </div>`;
     }
-    
+
+    var strategyType = analysis.strategy?.type || 'NEUTRAL';
+    var badgeClass = strategyType === 'BULLISH' ? 'bull' : strategyType === 'BEARISH' ? 'bear' : 'neutral';
+    var strategyIcon = strategyType === 'BULLISH' ? '📈' : strategyType === 'BEARISH' ? '📉' : '➡️';
+
     detailContainer.innerHTML = `
-      <div class="signal-card" style="margin-top:16px;">
-        <div class="signal-header">
-          <div class="signal-badge ${analysis.strategy?.type}">${analysis.strategy?.type} — ${analysis.symbol}</div>
-          <div class="sig-v">IV: ${analysis.iv}%</div>
+      <div class="analysis-card modern">
+        <div class="ac-header">
+          <div class="ac-title-row">
+            <span class="ac-icon">📊</span>
+            <span class="ac-title">${analysis.symbol || symbol} — Options Analysis</span>
+          </div>
+          <span class="ac-badge modern ${badgeClass}">${strategyIcon} ${strategyType}</span>
         </div>
-        <div class="signal-grid" style="margin-top:16px;">
-          <div class="sig-kv"><span class="sig-k">Spot Price</span><span class="sig-v">₹${analysis.currentPrice?.toLocaleString('en-IN')}</span></div>
-          <div class="sig-kv"><span class="sig-k">Expiry</span><span class="sig-v">${analysis.expiryDate}</span></div>
-          <div class="sig-kv"><span class="sig-k">Days to Expiry</span><span class="sig-v">${analysis.daysToExpiry}</span></div>
-          <div class="sig-kv"><span class="sig-k">PCR</span><span class="sig-v">${analysis.pcr}</span></div>
-          <div class="sig-kv"><span class="sig-k">Max Pain</span><span class="sig-v">₹${analysis.maxPain}</span></div>
-          <div class="sig-kv"><span class="sig-k">IV</span><span class="sig-v">${analysis.iv}%</span></div>
+
+        <div class="section-header modern">
+          <span class="section-icon">🎯</span>
+          <span>Key Metrics</span>
         </div>
-        <div style="margin-top:16px;">
-          <div class="sig-k">Strategy: <span class="${strategyClass}">${analysis.strategy?.type}</span></div>
-          <p>${analysis.strategy?.reason}</p>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Spot Price</span>
+            <span class="di-value">₹${(analysis.currentPrice || 0).toLocaleString('en-IN')}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Expiry</span>
+            <span class="di-value">${analysis.expiryDate || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Days to Expiry</span>
+            <span class="di-value">${analysis.daysToExpiry || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">PCR (Put-Call Ratio)</span>
+            <span class="di-value">${analysis.pcr || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Max Pain</span>
+            <span class="di-value">₹${analysis.maxPain || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Implied Volatility</span>
+            <span class="di-value">${analysis.iv || '-'}%</span>
+          </div>
         </div>
-        ${analysis.riskWarning ? `<p class="bear-text" style="margin-top:8px;">⚠️ ${analysis.riskWarning}</p>` : ''}
+
+        <div class="section-header modern">
+          <span class="section-icon">💡</span>
+          <span>Strategy Recommendation</span>
+        </div>
+        <div class="action-box modern ${strategyType === 'BEARISH' ? 'warning' : 'success'}">
+          <div class="action-icon">${strategyType === 'BULLISH' ? '📈' : strategyType === 'BEARISH' ? '📉' : '➡️'}</div>
+          <div class="action-content">
+            <strong>${strategyType}:</strong> ${analysis.strategy?.reason || 'No strategy available'}
+          </div>
+        </div>
+
+        ${analysis.riskWarning ? `<div class="action-box modern warning" style="margin-top:8px;">
+          <div class="action-icon">⚠️</div>
+          <div class="action-content"><strong>Warning:</strong> ${analysis.riskWarning}</div>
+        </div>` : ''}
+
         ${optionsChainHtml}
       </div>`;
   } catch (e) {
-    detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Analysis failed: ${e.message}</span></div>`;
   }
 }
 
 async function renderCryptoTabData() {
-  const container = document.getElementById('crypto-global-container');
-  if (!container) return;
-  if (!container.dataset.loaded) {
-    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
-    container.dataset.loaded = '1';
-  }
+  const globalContainer = document.getElementById('crypto-global-container');
+  const moversContainer = document.getElementById('crypto-top-movers');
+  const detailContainer = document.getElementById('crypto-detail-container');
+  if (!globalContainer) return;
+
   try {
-    const [global, all] = await Promise.all([api.crypto.global(), api.crypto.all()]);
-    const topPairs = (all || []).filter(x => !x.error).slice(0, 8).map(x => {
-      const p = Number.parseFloat(x.market || x.buy);
-      return [x.pair, Number.isFinite(p) ? `₹${p.toLocaleString('en-IN')}` : '—'];
-    });
-    const summaryRows = [
-      ['Market Cap (USD)', global.marketCap ? Number(global.marketCap).toLocaleString('en-US') : '—'],
-      ['24h Volume (USD)', global.totalVolume ? Number(global.totalVolume).toLocaleString('en-US') : '—'],
-      ['BTC Dominance', Number.isFinite(Number(global.btcDominance)) ? `${global.btcDominance}%` : '—'],
-      ['Fear & Greed', `${global.fearGreed ?? '—'} ${global.fearGreedLabel ? `(${global.fearGreedLabel})` : ''}`]
-    ];
-    const best = (all || [])
-      .filter(x => !x.error && Number.isFinite(Number.parseFloat(x.pricechange)))
-      .sort((a, b) => Number.parseFloat(b.pricechange) - Number.parseFloat(a.pricechange))[0];
-    const bestBlock = best
-      ? `<div class="signal-card" style="margin-top:16px;">
-          <div class="sig-k"><strong>Best crypto possibility (trend snapshot)</strong></div>
-          <p><strong>${best.pair}</strong> is showing <strong>${fmtPct(best.pricechange)}</strong> move.</p>
-          <p>If BTC dominance is high, prefer BTC/ETH over high-beta alts. Use staggered entries and strict stop-loss.</p>
-          <button class="btn-action" onclick="analyzeCryptoDetail('${best.pair.split('-')[0].toLowerCase()}')" style="margin-top:8px;">Detailed Analysis</button>
-        </div>`
-      : '';
-    
-    const topCoins = (all || []).filter(x => !x.error)
-      .sort((a, b) => Number.parseFloat(b.volumeQt || 0) - Number.parseFloat(a.volumeQt || 0))
-      .slice(0, 6);
-    const analyzeButtons = topCoins.length > 0
-      ? `<div style="margin-top:16px;">${topCoins.map(c =>
-          `<button class="btn-action" onclick="analyzeCryptoDetail('${c.pair.split('-')[0].toLowerCase()}')" style="margin-right:4px;">${c.pair.split('-')[0]}</button>`
-        ).join('')}</div>`
-      : '';
-    
-    container.innerHTML =
-      `<h3>Global Market</h3>${renderBasicTable(['Metric', 'Value'], summaryRows)}
-       <h3 style="margin-top:16px;">Top INR Pairs</h3>${renderBasicTable(['Pair', 'Price'], topPairs)}${bestBlock}
-       ${analyzeButtons}<div id="crypto-detail-container"></div>`;
+    const [global, all] = await Promise.allSettled([api.crypto.global(), api.crypto.all()]);
+    const globalData = global.status === 'fulfilled' ? global.value : {};
+    const allData = all.status === 'fulfilled' ? (all.value || []) : [];
+
+    // Global market cards with modern styling
+    globalContainer.innerHTML = `
+      <div class="market-cards-grid">
+        <div class="market-card-modern">
+          <div class="mc-icon">💰</div>
+          <div class="mc-label">Market Cap</div>
+          <div class="mc-value">$${globalData.marketCap ? (Number(globalData.marketCap) / 1e12).toFixed(2) + 'T' : '-'}</div>
+        </div>
+        <div class="market-card-modern">
+          <div class="mc-icon">📊</div>
+          <div class="mc-label">24h Volume</div>
+          <div class="mc-value">$${globalData.totalVolume ? (Number(globalData.totalVolume) / 1e9).toFixed(1) + 'B' : '-'}</div>
+        </div>
+        <div class="market-card-modern">
+          <div class="mc-icon">₿</div>
+          <div class="mc-label">BTC Dominance</div>
+          <div class="mc-value">${globalData.btcDominance || '-'}%</div>
+        </div>
+        <div class="market-card-modern">
+          <div class="mc-icon">😱</div>
+          <div class="mc-label">Fear & Greed</div>
+          <div class="mc-value">${globalData.fearGreed || '-'}</div>
+          <div class="mc-sub">${globalData.fearGreedLabel || ''}</div>
+        </div>
+      </div>`;
+
+    // Top movers with modern styling
+    const valid = allData.filter(x => !x.error);
+    const topByVolume = valid.sort((a, b) => Number.parseFloat(b.volumeQt || 0) - Number.parseFloat(a.volumeQt || 0)).slice(0, 8);
+    const topGainers = valid.filter(x => Number.parseFloat(x.pricechange) > 0).sort((a, b) => Number.parseFloat(b.pricechange) - Number.parseFloat(a.pricechange)).slice(0, 4);
+    const topLosers = valid.filter(x => Number.parseFloat(x.pricechange) < 0).sort((a, b) => Number.parseFloat(a.pricechange) - Number.parseFloat(b.pricechange)).slice(0, 4);
+
+    if (moversContainer) {
+      let moversHtml = '<div class="movers-grid">';
+      
+      if (topGainers.length > 0) {
+        moversHtml += '<div class="movers-section"><div class="movers-header"><span class="movers-icon">🚀</span><span>Top Gainers</span></div><div class="movers-list">';
+        topGainers.forEach(g => {
+          moversHtml += `<div class="mover-item gain">
+            <span class="mover-name">${g.pair.split('-')[0]}</span>
+            <span class="mover-change bull-text">▲ +${Number.parseFloat(g.pricechange).toFixed(2)}%</span>
+          </div>`;
+        });
+        moversHtml += '</div></div>';
+      }
+      
+      if (topLosers.length > 0) {
+        moversHtml += '<div class="movers-section"><div class="movers-header"><span class="movers-icon">📉</span><span>Top Losers</span></div><div class="movers-list">';
+        topLosers.forEach(l => {
+          moversHtml += `<div class="mover-item loss">
+            <span class="mover-name">${l.pair.split('-')[0]}</span>
+            <span class="mover-change bear-text">▼ ${Number.parseFloat(l.pricechange).toFixed(2)}%</span>
+          </div>`;
+        });
+        moversHtml += '</div></div>';
+      }
+      
+      moversHtml += '</div>';
+      moversContainer.innerHTML = `
+        <div class="analysis-card modern">
+          <div class="ac-header">
+            <span class="ac-icon">🔥</span>
+            <span class="ac-title">Top Movers</span>
+          </div>
+          ${moversHtml}
+        </div>`;
+    }
+
+    // Populate dropdown with modern styling
+    const sel = document.getElementById('crypto-symbol-select');
+    if (sel && sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">Select Coin...</option>' +
+        topByVolume.map(c => `<option value="${c.pair.split('-')[0].toLowerCase()}">${c.pair.split('-')[0]}</option>`).join('');
+    }
+
+    if (detailContainer && !detailContainer.innerHTML.includes('analysis-card')) {
+      detailContainer.innerHTML = `
+        <div class="analysis-card modern">
+          <div class="hint-box">
+            <span class="hint-icon">💡</span>
+            <span>Select a coin from the dropdown above for detailed AI analysis with entry, stop loss, targets, sentiment, and regulatory risk.</span>
+          </div>
+        </div>`;
+    }
   } catch (e) {
-    container.innerHTML = '<p class="bear-text">Unable to load crypto data.</p>';
+    if (globalContainer) globalContainer.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>Unable to load crypto data.</span></div>`;
   }
 }
 
 async function analyzeCryptoDetail(coin) {
   const detailContainer = document.getElementById('crypto-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing crypto...</p>';
+  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Analyzing ${coin.toUpperCase()} + AI Trade Plan loading...</span></div>`;
   try {
     const analysis = await api.crypto.analyze(coin);
-    const recClass = analysis.recommendation === 'BUY' ? 'bull-text' : analysis.recommendation === 'SELL' ? 'bear-text' : '';
-    
-    detailContainer.innerHTML = `
-      <div class="signal-card" style="margin-top:16px;">
-        <div class="signal-header">
-          <div class="signal-badge ${analysis.recommendation}">${analysis.recommendation} — ${analysis.name || analysis.symbol}</div>
-          <div class="sig-v">Conf: ${analysis.confidence}/10</div>
-        </div>
-        <div class="confidence-bar-bg"><div class="confidence-bar-fill" style="width: ${analysis.confidence * 10}%"></div></div>
-        <div class="signal-grid" style="margin-top:16px;">
-          <div class="sig-kv"><span class="sig-k">Price</span><span class="sig-v">₹${analysis.currentPrice?.toLocaleString('en-IN')}</span></div>
-          <div class="sig-kv"><span class="sig-k">24h Change</span><span class="sig-v ${analysis.change24h >= 0 ? 'bull-text' : 'bear-text'}">${analysis.change24h >= 0 ? '+' : ''}${analysis.change24h}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Volatility</span><span class="sig-v">${analysis.volatility}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Liquidity</span><span class="sig-v">${analysis.liquidityScore}</span></div>
-          <div class="sig-kv"><span class="sig-k">BTC Dominance</span><span class="sig-v">${analysis.btcDominance}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Fear & Greed</span><span class="sig-v">${analysis.fearGreed?.current} (${analysis.fearGreed?.label})</span></div>
-        </div>
-        ${analysis.onChain ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">On-Chain Metrics</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">Market Cap Rank</span><span class="sig-v">#${analysis.onChain.marketCapRank}</span></div>
-            <div class="sig-kv"><span class="sig-k">Supply Ratio</span><span class="sig-v">${analysis.onChain.supplyRatio || 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">ATH</span><span class="sig-v">₹${analysis.onChain.ath?.toLocaleString('en-IN')}</span></div>
-            <div class="sig-kv"><span class="sig-k">ATH Change</span><span class="sig-v">${analysis.onChain.athChange?.toFixed(1)}%</span></div>
+    const rec = analysis.recommendation || 'HOLD';
+    const conf = analysis.confidence || 0;
+    const recClass = rec === 'BUY' ? 'bull' : rec === 'SELL' ? 'bear' : 'neutral';
+
+    let html = `
+      <div class="analysis-card modern">
+        <div class="ac-header">
+          <div class="ac-title-row">
+            <span class="ac-icon">🪙</span>
+            <span class="ac-title">${analysis.name || coin.toUpperCase()} — Technical Analysis</span>
           </div>
-        </div>` : ''}
-        ${analysis.indicators ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">Technical Indicators</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">RSI</span><span class="sig-v">${analysis.indicators.rsi} (${analysis.indicators.rsiSignal})</span></div>
-            <div class="sig-kv"><span class="sig-k">Trend</span><span class="sig-v">${analysis.indicators.trend}</span></div>
-            <div class="sig-kv"><span class="sig-k">MACD</span><span class="sig-v">${analysis.indicators.macdCross}</span></div>
-          </div>
-        </div>` : ''}
-        <div class="confluences-list" style="margin-top:16px;">
-          <div class="sig-k">Analysis Reasons</div>
-          <ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul>
+          <span class="ac-badge modern ${recClass}">${rec} | Conf: ${conf}/10</span>
         </div>
-      </div>`;
+
+        <!-- Price & Sentiment -->
+        <div class="section-header modern">
+          <span class="section-icon">💰</span>
+          <span>Price & Sentiment</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Price</span>
+            <span class="di-value">₹${(analysis.currentPrice || 0).toLocaleString('en-IN')}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">24h Change</span>
+            <span class="di-value ${(analysis.change24h || 0) >= 0 ? 'bull-text' : 'bear-text'}">
+              ${(analysis.change24h || 0) >= 0 ? '▲' : '▼'} ${(analysis.change24h || 0) >= 0 ? '+' : ''}${analysis.change24h || 0}%
+            </span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Volatility</span>
+            <span class="di-value">${analysis.volatility || '-'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Liquidity</span>
+            <span class="di-value">${analysis.liquidityScore || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Fear & Greed</span>
+            <span class="di-value">${analysis.fearGreed?.current || '-'} (${analysis.fearGreed?.label || '-'})</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">BTC Dominance</span>
+            <span class="di-value">${analysis.btcDominance || '-'}%</span>
+          </div>
+        </div>`;
+
+    // Technical Indicators
+    if (analysis.indicators) {
+      html += `
+        <div class="section-header modern">
+          <span class="section-icon">📊</span>
+          <span>Technical Indicators</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">RSI</span>
+            <span class="di-value">${analysis.indicators.rsi?.toFixed(1) || '-'} (${analysis.indicators.rsiSignal || '-'})</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Trend</span>
+            <span class="di-value">${analysis.indicators.trend || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">MACD</span>
+            <span class="di-value">${analysis.indicators.macdCross || '-'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Bollinger</span>
+            <span class="di-value">${analysis.indicators.bbPosition || '-'}</span>
+          </div>
+        </div>`;
+    }
+
+    // Analysis Reasons
+    if (analysis.reasons && analysis.reasons.length > 0) {
+      html += `
+        <div class="section-header modern">
+          <span class="section-icon">🔍</span>
+          <span>Analysis Reasons</span>
+        </div>
+        <ul class="reason-list modern">
+          ${analysis.reasons.map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('')}
+        </ul>`;
+    }
+
+    html += `<div id="crypto-ai-plan-loading" class="loading-card" style="margin-top:16px;"><div class="loading-spinner"></div><span>Generating AI Trade Plan...</span></div></div>`;
+
+    detailContainer.innerHTML = html;
+
+    // AI Trade Plan
+    try {
+      const pairKey = coin.toUpperCase() + '-INR';
+      const price = analysis.currentPrice || 0;
+      const ohlcv = analysis.ohlcv || [];
+      if (price > 0) {
+        const { signal } = await api.ai.analyze({ symbol: pairKey, price, ohlcv, globalStats: analysis.globalStats || {} }, 'CRYPTO', 100000);
+        const planEl = document.getElementById('crypto-ai-plan-loading');
+        if (planEl) planEl.outerHTML = renderAITradePlanInline(signal);
+      }
+    } catch (e) {
+      const planEl = document.getElementById('crypto-ai-plan-loading');
+      if (planEl) planEl.outerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>AI Trade Plan unavailable: ${e.message}</span></div>`;
+    }
   } catch (e) {
-    detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Analysis failed: ${e.message}</span></div>`;
   }
 }
 
@@ -431,80 +782,162 @@ async function renderMfTabData() {
   const container = document.getElementById('mf-container');
   if (!container) return;
   if (!container.dataset.loaded) {
-    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+    container.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Loading...</span></div>`;
     container.dataset.loaded = '1';
   }
   try {
     const data = await api.mf.watchlist();
-    const rows = data.map(f => {
-      if (f.error) return [f.name || f.code, '—', '—', '—'];
-      const nav = Number.parseFloat(f.nav);
-      const chg = Number.parseFloat(f.change);
-      const chgCell = Number.isFinite(chg)
-        ? `<span class="${chg >= 0 ? 'bull-text' : 'bear-text'}">${chg >= 0 ? '+' : ''}${chg.toFixed(4)}</span>`
-        : '—';
-      return [f.name, Number.isFinite(nav) ? nav.toFixed(4) : '—', f.date || '—', chgCell];
-    });
-    const ranked = data
-      .filter(f => !f.error && Number.isFinite(Number(f.change)))
-      .sort((a, b) => Number(b.change) - Number(a.change));
+    const ranked = data.filter(f => !f.error && Number.isFinite(Number(f.change))).sort((a, b) => Number(b.change) - Number(a.change));
     const best = ranked[0];
-    const note = best
-      ? `<div class="signal-card" style="margin-top:16px;">
-          <div class="sig-k"><strong>Best MF possibility (watchlist momentum)</strong></div>
-          <p><strong>${best.name}</strong> has strongest latest NAV delta (<strong>${Number(best.change).toFixed(4)}</strong>).</p>
-          <p>MF is long-horizon. Prefer SIP/STP style entries over lump-sum chasing one-day moves.</p>
-          <button class="btn-action" onclick="analyzeMfDetail('${best.code}')" style="margin-top:8px;">Detailed Analysis</button>
-        </div>`
-      : '<p class="bear-text" style="margin-top:10px;">MF API data delayed/unavailable. Retrying automatically.</p>';
-    
-    const analyzeButtons = data.filter(f => !f.error).map(f => 
-      `<button class="btn-action" onclick="analyzeMfDetail('${f.code}')" style="margin:2px;">${f.name.split(' ')[0]}</button>`
-    ).join('');
-    
-    container.innerHTML = renderBasicTable(['Fund', 'NAV', 'Date', 'Change'], rows) + note + 
-      `<div style="margin-top:12px;">${analyzeButtons}</div><div id="mf-detail-container"></div>`;
+    const worst = ranked[ranked.length - 1];
+
+    // Fund cards with modern styling
+    container.innerHTML = `
+      <div class="funds-grid">
+        ${data.filter(f => !f.error).map(function(f) {
+          var nav = Number.parseFloat(f.nav);
+          var chg = Number.parseFloat(f.change);
+          const isPositive = chg >= 0;
+          return `<div class="fund-card modern" onclick="analyzeMfDetail('${f.code}')">
+            <div class="fund-icon">📈</div>
+            <div class="fund-name">${f.name.split(' ').slice(0, 2).join(' ')}</div>
+            <div class="fund-nav">₹${Number.isFinite(nav) ? nav.toFixed(4) : '-'}</div>
+            <div class="fund-change ${isPositive ? 'bull-text' : 'bear-text'}">
+              ${isPositive ? '▲' : '▼'} ${isPositive ? '+' : ''}${chg || 0}%
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="button-group" style="margin-top:16px;">
+        ${data.filter(f => !f.error).map(function(f) {
+          return `<button class="btn-action modern" onclick="analyzeMfDetail('${f.code}')">
+            <span class="btn-icon">📊</span>
+            <span>${f.name.split(' ')[0]}</span>
+          </button>`;
+        }).join('')}
+      </div>
+      <div id="mf-detail-container" style="margin-top:16px;"></div>`;
   } catch (e) {
-    container.innerHTML = '<p class="bear-text">Unable to load mutual fund data.</p>';
+    container.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>Unable to load mutual fund data.</span></div>`;
   }
 }
 
 async function analyzeMfDetail(code) {
   const detailContainer = document.getElementById('mf-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing fund + AI Trade Plan loading...</p>';
+  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Analyzing fund + AI Trade Plan loading...</span></div>`;
   try {
     const analysis = await api.mf.analyze(code);
+    const rec = analysis.recommendation || 'HOLD';
+    const conf = analysis.confidence || 0;
+    const recClass = rec === 'BUY' || rec === 'START_SIP' ? 'bull' : rec === 'AVOID' || rec === 'DUMP' ? 'bear' : 'neutral';
     
-    let html = `<div class="signal-card" style="margin-top:16px;">
-        <div class="signal-header">
-          <div class="signal-badge ${analysis.recommendation}">${analysis.recommendation} — ${analysis.name}</div>
-          <div class="sig-v">Conf: ${analysis.confidence}/10</div>
+    let html = `
+      <div class="analysis-card modern" style="margin-top:16px;">
+        <div class="ac-header">
+          <div class="ac-title-row">
+            <span class="ac-icon">📈</span>
+            <span class="ac-title">${analysis.name}</span>
+          </div>
+          <span class="ac-badge modern ${recClass}">${rec} | Conf: ${conf}/10</span>
         </div>
-        <div class="confidence-bar-bg"><div class="confidence-bar-fill" style="width: ${analysis.confidence * 10}%"></div></div>
-        <div class="signal-grid" style="margin-top:16px;">
-          <div class="sig-kv"><span class="sig-k">Category</span><span class="sig-v">${analysis.category}</span></div>
-          <div class="sig-kv"><span class="sig-k">Risk Level</span><span class="sig-v">${analysis.riskLevel}</span></div>
-          <div class="sig-kv"><span class="sig-k">NAV</span><span class="sig-v">${analysis.currentNAV}</span></div>
-          <div class="sig-kv"><span class="sig-k">Volatility</span><span class="sig-v">${analysis.volatility}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Sharpe Ratio</span><span class="sig-v">${analysis.sharpeRatio || 'N/A'}</span></div>
-          <div class="sig-kv"><span class="sig-k">Max Drawdown</span><span class="sig-v">${analysis.maxDrawdown}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Consistency</span><span class="sig-v">${analysis.consistency || 'N/A'}%</span></div>
+        <div class="confidence-bar-bg"><div class="confidence-bar-fill ${recClass}" style="width: ${conf * 10}%"></div></div>
+        
+        <div class="section-header modern">
+          <span class="section-icon">📊</span>
+          <span>Fund Details</span>
         </div>
-        <div style="margin-top:16px;">
-          <div class="sig-k">Returns</div>
-          <div class="signal-grid">
-            <div class="sig-kv"><span class="sig-k">1W</span><span class="sig-v ${(analysis.returns?.['1w'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1w'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">1M</span><span class="sig-v ${(analysis.returns?.['1m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1m'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">3M</span><span class="sig-v ${(analysis.returns?.['3m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3m'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">1Y</span><span class="sig-v ${(analysis.returns?.['1y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1y'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">3Y</span><span class="sig-v ${(analysis.returns?.['3y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3y'] ?? 'N/A'}%</span></div>
-            <div class="sig-kv"><span class="sig-k">5Y</span><span class="sig-v ${(analysis.returns?.['5y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['5y'] ?? 'N/A'}%</span></div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Category</span>
+            <span class="di-value">${analysis.category}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Risk Level</span>
+            <span class="di-value">${analysis.riskLevel}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">NAV</span>
+            <span class="di-value">₹${analysis.currentNAV}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Volatility</span>
+            <span class="di-value">${analysis.volatility}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Sharpe Ratio</span>
+            <span class="di-value">${analysis.sharpeRatio || 'N/A'}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Max Drawdown</span>
+            <span class="di-value bear-text">${analysis.maxDrawdown}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Consistency</span>
+            <span class="di-value">${analysis.consistency || 'N/A'}%</span>
           </div>
         </div>
-        ${analysis.suitability ? `<div style="margin-top:16px;"><div class="sig-k">Suitability</div><div class="signal-grid"><div class="sig-kv"><span class="sig-k">Short Term</span><span class="sig-v">${analysis.suitability.shortTerm}</span></div><div class="sig-kv"><span class="sig-k">Long Term</span><span class="sig-v">${analysis.suitability.longTerm}</span></div><div class="sig-kv"><span class="sig-k">SIP</span><span class="sig-v">${analysis.suitability.sip}</span></div></div></div>` : ''}
-        <div class="confluences-list" style="margin-top:16px;"><div class="sig-k">Analysis Reasons</div><ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul></div>
-        <div id="mf-ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Trade Plan...</div>
+        
+        <div class="section-header modern">
+          <span class="section-icon">📈</span>
+          <span>Returns</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">1W</span>
+            <span class="di-value ${(analysis.returns?.['1w'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1w'] ?? 'N/A'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">1M</span>
+            <span class="di-value ${(analysis.returns?.['1m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1m'] ?? 'N/A'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">3M</span>
+            <span class="di-value ${(analysis.returns?.['3m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3m'] ?? 'N/A'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">1Y</span>
+            <span class="di-value ${(analysis.returns?.['1y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1y'] ?? 'N/A'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">3Y</span>
+            <span class="di-value ${(analysis.returns?.['3y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3y'] ?? 'N/A'}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">5Y</span>
+            <span class="di-value ${(analysis.returns?.['5y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['5y'] ?? 'N/A'}%</span>
+          </div>
+        </div>
+        
+        ${analysis.suitability ? `
+        <div class="section-header modern">
+          <span class="section-icon">🎯</span>
+          <span>Suitability</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Short Term</span>
+            <span class="di-value">${analysis.suitability.shortTerm}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Long Term</span>
+            <span class="di-value">${analysis.suitability.longTerm}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">SIP</span>
+            <span class="di-value">${analysis.suitability.sip}</span>
+          </div>
+        </div>` : ''}
+        
+        <div class="section-header modern">
+          <span class="section-icon">🔍</span>
+          <span>Analysis Reasons</span>
+        </div>
+        <ul class="reason-list modern">
+          ${(analysis.reasons || []).map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('')}
+        </ul>
+        
+        <div id="mf-ai-plan-loading" class="loading-card" style="margin-top:12px;"><div class="loading-spinner"></div><span>Generating AI Trade Plan...</span></div>
       </div>`;
     detailContainer.innerHTML = html;
 
@@ -515,10 +948,10 @@ async function analyzeMfDetail(code) {
       if (planEl) planEl.outerHTML = renderAIPlanGeneric(aiPlan, 'MF');
     } catch (e) {
       const planEl = document.getElementById('mf-ai-plan-loading');
-      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Trade Plan unavailable: ' + e.message + '</p>';
+      if (planEl) planEl.outerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>AI Trade Plan unavailable: ${e.message}</span></div>`;
     }
   } catch (e) {
-    detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Analysis failed: ${e.message}</span></div>`;
   }
 }
 
@@ -526,7 +959,7 @@ async function renderIpoTabData() {
   const container = document.getElementById('ipo-container');
   if (!container) return;
   if (!container.dataset.loaded) {
-    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+    container.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Loading...</span></div>`;
     container.dataset.loaded = '1';
   }
   try {
@@ -539,51 +972,141 @@ async function renderIpoTabData() {
     const open = list.filter(i => i.status === 'Open');
     const bestListed = listed[0];
     const bestOpen = open[0];
+    
     const report = `
-      <div class="signal-card" style="margin-top:16px;">
-        <div class="sig-k"><strong>AI-style IPO report (past + present snapshot)</strong></div>
-        <p><strong>Past listing strength:</strong> ${bestListed ? `${bestListed.name} (${bestListed.gain})` : 'insufficient listed history'}.</p>
-        <p><strong>Current opportunity:</strong> ${bestOpen ? `${bestOpen.name} (${bestOpen.price})` : 'No open IPO in list right now'}.</p>
-        <p><strong>Decision framework:</strong> prioritize profitability visibility, valuation comfort, and sector momentum; avoid overhyped subscription without fundamentals.</p>
-        ${bestOpen ? `<button class="btn-action" onclick="analyzeIpoDetail('${bestOpen.name}')" style="margin-top:8px;">Detailed Analysis</button>` : ''}
+      <div class="analysis-card modern" style="margin-top:16px;">
+        <div class="ac-header">
+          <span class="ac-icon">📋</span>
+          <span class="ac-title">AI-style IPO Report (Past + Present Snapshot)</span>
+        </div>
+        <div class="report-content">
+          <div class="report-item">
+            <span class="report-label">Past listing strength:</span>
+            <span class="report-value">${bestListed ? `${bestListed.name} (${bestListed.gain})` : 'insufficient listed history'}</span>
+          </div>
+          <div class="report-item">
+            <span class="report-label">Current opportunity:</span>
+            <span class="report-value">${bestOpen ? `${bestOpen.name} (${bestOpen.price})` : 'No open IPO in list right now'}</span>
+          </div>
+          <div class="report-item">
+            <span class="report-label">Decision framework:</span>
+            <span class="report-value">prioritize profitability visibility, valuation comfort, and sector momentum; avoid overhyped subscription without fundamentals.</span>
+          </div>
+        </div>
+        ${bestOpen ? `<button class="btn-action modern" onclick="analyzeIpoDetail('${bestOpen.name}')" style="margin-top:12px;">
+          <span class="btn-icon">🔍</span>
+          <span>Detailed Analysis</span>
+        </button>` : ''}
       </div>`;
     
-    const analyzeButtons = list.map(i => 
-      `<button class="btn-action" onclick="analyzeIpoDetail('${i.name}')" style="margin:2px;">${i.name.split(' ')[0]}</button>`
+    const analyzeButtons = list.map(i =>
+      `<button class="btn-action modern" onclick="analyzeIpoDetail('${i.name}')" style="margin:2px;">
+        <span class="btn-icon">📊</span>
+        <span>${i.name.split(' ')[0]}</span>
+      </button>`
     ).join('');
     
-    container.innerHTML = renderBasicTable(['IPO', 'Status', 'Price Band', 'Close/Listed', 'Exchange'], rows) + report + 
-      `<div style="margin-top:12px;">${analyzeButtons}</div><div id="ipo-detail-container"></div>`;
+    container.innerHTML = `
+      <div class="table-container modern">
+        ${renderBasicTable(['IPO', 'Status', 'Price Band', 'Close/Listed', 'Exchange'], rows)}
+      </div>
+      ${report}
+      <div class="button-group" style="margin-top:12px;">${analyzeButtons}</div>
+      <div id="ipo-detail-container"></div>`;
   } catch (e) {
-    container.innerHTML = '<p class="bear-text">Unable to load IPO data.</p>';
+    container.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>Unable to load IPO data.</span></div>`;
   }
 }
 
 async function analyzeIpoDetail(name) {
   const detailContainer = document.getElementById('ipo-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = '<p class="placeholder-text">Analyzing IPO + AI Trade Plan loading...</p>';
+  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Analyzing IPO + AI Trade Plan loading...</span></div>`;
   try {
     const analysis = await api.ipo.analyze(name);
+    const rec = analysis.recommendation || 'HOLD';
+    const conf = analysis.confidence || 0;
+    const recClass = rec === 'BUY' || rec === 'APPLY_LISTING_GAINS' || rec === 'APPLY_LONG_TERM' ? 'bull' : rec === 'AVOID' ? 'bear' : 'neutral';
     
-    let html = `<div class="signal-card" style="margin-top:16px;">
-        <div class="signal-header">
-          <div class="signal-badge ${analysis.recommendation}">${analysis.recommendation} — ${analysis.name}</div>
-          <div class="sig-v">Conf: ${analysis.confidence}/10</div>
+    let html = `
+      <div class="analysis-card modern" style="margin-top:16px;">
+        <div class="ac-header">
+          <div class="ac-title-row">
+            <span class="ac-icon">📋</span>
+            <span class="ac-title">${analysis.name}</span>
+          </div>
+          <span class="ac-badge modern ${recClass}">${rec} | Conf: ${conf}/10</span>
         </div>
-        <div class="confidence-bar-bg"><div class="confidence-bar-fill" style="width: ${analysis.confidence * 10}%"></div></div>
-        <div class="signal-grid" style="margin-top:16px;">
-          <div class="sig-kv"><span class="sig-k">Status</span><span class="sig-v">${analysis.status}</span></div>
-          <div class="sig-kv"><span class="sig-k">Sector</span><span class="sig-v">${analysis.sector}</span></div>
-          <div class="sig-kv"><span class="sig-k">Price Band</span><span class="sig-v">${analysis.price}</span></div>
-          <div class="sig-kv"><span class="sig-k">Issue Size</span><span class="sig-v">${analysis.issueSize}</span></div>
-          <div class="sig-kv"><span class="sig-k">Lot Size</span><span class="sig-v">${analysis.lotSize}</span></div>
-          ${analysis.gmp ? `<div class="sig-kv"><span class="sig-k">GMP</span><span class="sig-v bull-text">₹${analysis.gmp}</span></div>` : ''}
-          ${analysis.gain ? `<div class="sig-kv"><span class="sig-k">Listing Gain</span><span class="sig-v ${parseFloat(analysis.gain) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.gain}</span></div>` : ''}
+        <div class="confidence-bar-bg"><div class="confidence-bar-fill ${recClass}" style="width: ${conf * 10}%"></div></div>
+        
+        <div class="section-header modern">
+          <span class="section-icon">📊</span>
+          <span>IPO Details</span>
         </div>
-        ${analysis.subscription ? `<div style="margin-top:16px;"><div class="sig-k">Subscription</div><div class="signal-grid"><div class="sig-kv"><span class="sig-k">QIB</span><span class="sig-v">${analysis.subscription.qib}x</span></div><div class="sig-kv"><span class="sig-k">NII</span><span class="sig-v">${analysis.subscription.nii}x</span></div><div class="sig-kv"><span class="sig-k">Retail</span><span class="sig-v">${analysis.subscription.retail}x</span></div><div class="sig-kv"><span class="sig-k">Total</span><span class="sig-v">${analysis.subscription.total}x</span></div></div></div>` : ''}
-        <div class="confluences-list" style="margin-top:16px;"><div class="sig-k">Analysis Reasons</div><ul>${(analysis.reasons || []).map(r => `<li>${r}</li>`).join('')}</ul></div>
-        <div id="ipo-ai-plan-loading" class="placeholder-text" style="margin-top:12px;">Generating AI Forensic Report...</div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Status</span>
+            <span class="di-value">${analysis.status}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Sector</span>
+            <span class="di-value">${analysis.sector}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Price Band</span>
+            <span class="di-value">${analysis.price}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Issue Size</span>
+            <span class="di-value">${analysis.issueSize}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Lot Size</span>
+            <span class="di-value">${analysis.lotSize}</span>
+          </div>
+          ${analysis.gmp ? `<div class="data-item modern">
+            <span class="di-label">GMP</span>
+            <span class="di-value bull-text">₹${analysis.gmp}</span>
+          </div>` : ''}
+          ${analysis.gain ? `<div class="data-item modern">
+            <span class="di-label">Listing Gain</span>
+            <span class="di-value ${parseFloat(analysis.gain) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.gain}</span>
+          </div>` : ''}
+        </div>
+        
+        ${analysis.subscription ? `
+        <div class="section-header modern">
+          <span class="section-icon">📈</span>
+          <span>Subscription</span>
+        </div>
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">QIB</span>
+            <span class="di-value">${analysis.subscription.qib}x</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">NII</span>
+            <span class="di-value">${analysis.subscription.nii}x</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Retail</span>
+            <span class="di-value">${analysis.subscription.retail}x</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Total</span>
+            <span class="di-value">${analysis.subscription.total}x</span>
+          </div>
+        </div>` : ''}
+        
+        <div class="section-header modern">
+          <span class="section-icon">🔍</span>
+          <span>Analysis Reasons</span>
+        </div>
+        <ul class="reason-list modern">
+          ${(analysis.reasons || []).map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('')}
+        </ul>
+        
+        <div id="ipo-ai-plan-loading" class="loading-card" style="margin-top:12px;"><div class="loading-spinner"></div><span>Generating AI Forensic Report...</span></div>
       </div>`;
     detailContainer.innerHTML = html;
 
@@ -594,10 +1117,10 @@ async function analyzeIpoDetail(name) {
       if (planEl) planEl.outerHTML = renderAIPlanGeneric(aiPlan, 'IPO');
     } catch (e) {
       const planEl = document.getElementById('ipo-ai-plan-loading');
-      if (planEl) planEl.outerHTML = '<p class="muted" style="margin-top:12px;">AI Forensic Report unavailable: ' + e.message + '</p>';
+      if (planEl) planEl.outerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>AI Forensic Report unavailable: ${e.message}</span></div>`;
     }
   } catch (e) {
-    detailContainer.innerHTML = `<p class="bear-text">Analysis failed: ${e.message}</p>`;
+    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Analysis failed: ${e.message}</span></div>`;
   }
 }
 
@@ -609,53 +1132,101 @@ function renderRiskTabData() {
   const maxRisk = Number.isFinite(capital) ? (capital * 0.02) : 2000;
   const sl05 = Number.isFinite(capital) ? Math.floor(maxRisk / (capital * 0.005 || 1)) : 0;
   const sl10 = Number.isFinite(capital) ? Math.floor(maxRisk / (capital * 0.01 || 1)) : 0;
+  
   container.innerHTML = `
-    <h2>Risk Engine</h2>
-    <div class="signal-card">
-      <div class="sig-kv"><span class="sig-k">Max Risk Per Trade (2%)</span><span class="sig-v">₹${maxRisk.toLocaleString('en-IN')}</span></div>
-      <div class="sig-kv"><span class="sig-k">Daily Max Drawdown</span><span class="sig-v">₹${(maxRisk * 2).toLocaleString('en-IN')} (stop trading after hit)</span></div>
-      <div class="sig-kv"><span class="sig-k">Consecutive Loss Cutoff</span><span class="sig-v">3 trades</span></div>
-      <div class="sig-kv"><span class="sig-k">Position Sizing Formula</span><span class="sig-v">Qty = Risk / (Entry - StopLoss)</span></div>
-      <div class="sig-kv"><span class="sig-k">Example Qty (0.5% SL)</span><span class="sig-v">${sl05} units (approx)</span></div>
-      <div class="sig-kv"><span class="sig-k">Example Qty (1.0% SL)</span><span class="sig-v">${sl10} units (approx)</span></div>
-      <p style="margin-top:10px;">Best possibility improves when trend + volume + risk-reward align. If one is weak, reduce size or skip trade.</p>
-    </div>
-    <div style="margin-top:20px;">
-      <h3>Portfolio Risk Assessment</h3>
-      <p class="placeholder-text">Add positions to your portfolio to see risk assessment.</p>
-      <div id="portfolio-risk-form" style="margin-top:12px;">
-        <div class="input-group">
-          <label>Position Symbol</label>
-          <input type="text" id="risk-symbol" placeholder="e.g., RELIANCE.NS">
-        </div>
-        <div class="input-group">
-          <label>Value (₹)</label>
-          <input type="number" id="risk-value" placeholder="e.g., 50000">
-        </div>
-        <div class="input-group">
-          <label>Sector</label>
-          <select id="risk-sector">
-            <option value="IT">IT</option>
-            <option value="Banking">Banking</option>
-            <option value="Energy">Energy</option>
-            <option value="Auto">Auto</option>
-            <option value="Pharma">Pharma</option>
-            <option value="FMCG">FMCG</option>
-            <option value="Metals">Metals</option>
-            <option value="Crypto">Crypto</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label>Asset Class</label>
-          <select id="risk-asset-class">
-            <option value="EQUITY">Equity</option>
-            <option value="CRYPTO">Crypto</option>
-            <option value="MF">Mutual Fund</option>
-          </select>
-        </div>
-        <button class="btn-primary" onclick="addPortfolioPosition()" style="margin-top:8px;">Add Position</button>
+    <div class="analysis-card modern">
+      <div class="ac-header">
+        <span class="ac-icon">🛡️</span>
+        <span class="ac-title">Risk Engine</span>
       </div>
+      
+      <div class="section-header modern">
+        <span class="section-icon">📊</span>
+        <span>Risk Parameters</span>
+      </div>
+      <div class="data-grid modern">
+        <div class="data-item modern">
+          <span class="di-label">Max Risk Per Trade (2%)</span>
+          <span class="di-value">₹${maxRisk.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="data-item modern">
+          <span class="di-label">Daily Max Drawdown</span>
+          <span class="di-value bear-text">₹${(maxRisk * 2).toLocaleString('en-IN')} (stop trading after hit)</span>
+        </div>
+        <div class="data-item modern">
+          <span class="di-label">Consecutive Loss Cutoff</span>
+          <span class="di-value">3 trades</span>
+        </div>
+        <div class="data-item modern">
+          <span class="di-label">Position Sizing Formula</span>
+          <span class="di-value">Qty = Risk / (Entry - StopLoss)</span>
+        </div>
+        <div class="data-item modern">
+          <span class="di-label">Example Qty (0.5% SL)</span>
+          <span class="di-value">${sl05} units (approx)</span>
+        </div>
+        <div class="data-item modern">
+          <span class="di-label">Example Qty (1.0% SL)</span>
+          <span class="di-value">${sl10} units (approx)</span>
+        </div>
+      </div>
+      
+      <div class="hint-box" style="margin-top:12px;">
+        <span class="hint-icon">💡</span>
+        <span>Best possibility improves when trend + volume + risk-reward align. If one is weak, reduce size or skip trade.</span>
+      </div>
+    </div>
+    
+    <div class="analysis-card modern" style="margin-top:20px;">
+      <div class="ac-header">
+        <span class="ac-icon">📈</span>
+        <span class="ac-title">Portfolio Risk Assessment</span>
+      </div>
+      
+      <div class="hint-box">
+        <span class="hint-icon">💡</span>
+        <span>Add positions to your portfolio to see risk assessment.</span>
+      </div>
+      
+      <div id="portfolio-risk-form" style="margin-top:16px;">
+        <div class="form-grid">
+          <div class="input-group modern">
+            <label>Position Symbol</label>
+            <input type="text" id="risk-symbol" placeholder="e.g., RELIANCE.NS">
+          </div>
+          <div class="input-group modern">
+            <label>Value (₹)</label>
+            <input type="number" id="risk-value" placeholder="e.g., 50000">
+          </div>
+          <div class="input-group modern">
+            <label>Sector</label>
+            <select id="risk-sector">
+              <option value="IT">IT</option>
+              <option value="Banking">Banking</option>
+              <option value="Energy">Energy</option>
+              <option value="Auto">Auto</option>
+              <option value="Pharma">Pharma</option>
+              <option value="FMCG">FMCG</option>
+              <option value="Metals">Metals</option>
+              <option value="Crypto">Crypto</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="input-group modern">
+            <label>Asset Class</label>
+            <select id="risk-asset-class">
+              <option value="EQUITY">Equity</option>
+              <option value="CRYPTO">Crypto</option>
+              <option value="MF">Mutual Fund</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-primary modern" onclick="addPortfolioPosition()" style="margin-top:12px;">
+          <span class="btn-icon">➕</span>
+          <span>Add Position</span>
+        </button>
+      </div>
+      
       <div id="portfolio-list" style="margin-top:16px;"></div>
       <div id="portfolio-risk-result" style="margin-top:16px;"></div>
     </div>
@@ -710,74 +1281,129 @@ function renderPortfolioList() {
   if (!listContainer) return;
   
   if (portfolio.length === 0) {
-    listContainer.innerHTML = '<p class="muted">No positions added yet.</p>';
+    listContainer.innerHTML = `<div class="hint-box"><span class="hint-icon">📭</span><span>No positions added yet.</span></div>`;
     return;
   }
   
   listContainer.innerHTML = `
-    <table style="width:100%; font-size:13px;">
-      <thead><tr><th>Symbol</th><th>Value</th><th>Sector</th><th>Class</th><th></th></tr></thead>
-      <tbody>
-        ${portfolio.map((p, i) => `
+    <div class="table-container modern">
+      <table class="portfolio-table">
+        <thead>
           <tr>
-            <td>${p.symbol}</td>
-            <td>₹${p.value.toLocaleString('en-IN')}</td>
-            <td>${p.sector}</td>
-            <td>${p.assetClass}</td>
-            <td><button class="btn-action" onclick="removePortfolioPosition(${i})" style="padding:2px 8px; font-size:11px;">✕</button></td>
+            <th>Symbol</th>
+            <th>Value</th>
+            <th>Sector</th>
+            <th>Class</th>
+            <th></th>
           </tr>
-        `).join('')}
-      </tbody>
-    </table>
-    <button class="btn-primary" onclick="assessPortfolioRisk()" style="margin-top:12px;">Assess Portfolio Risk</button>
+        </thead>
+        <tbody>
+          ${portfolio.map((p, i) => `
+            <tr>
+              <td><span class="symbol-badge">${p.symbol}</span></td>
+              <td>₹${p.value.toLocaleString('en-IN')}</td>
+              <td>${p.sector}</td>
+              <td>${p.assetClass}</td>
+              <td><button class="btn-action modern danger" onclick="removePortfolioPosition(${i})" style="padding:4px 10px; font-size:11px;">✕</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn-primary modern" onclick="assessPortfolioRisk()" style="margin-top:12px;">
+      <span class="btn-icon">📊</span>
+      <span>Assess Portfolio Risk</span>
+    </button>
   `;
 }
 
 async function assessPortfolioRisk() {
   const resultContainer = document.getElementById('portfolio-risk-result');
   if (!resultContainer) return;
-  resultContainer.innerHTML = '<p class="placeholder-text">Assessing risk...</p>';
+  resultContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Assessing risk...</span></div>`;
   
   try {
     const capital = parseFloat(document.getElementById('ai-capital-input')?.value || '100000');
     const assessment = await api.risk.portfolio(portfolio, capital);
     
-    const riskColor = assessment.riskLevel === 'HIGH' ? 'bear-text' : assessment.riskLevel === 'LOW' ? 'bull-text' : '';
+    const riskColor = assessment.riskLevel === 'HIGH' ? 'bear' : assessment.riskLevel === 'LOW' ? 'bull' : 'neutral';
+    const riskIcon = assessment.riskLevel === 'HIGH' ? '🔴' : assessment.riskLevel === 'LOW' ? '🟢' : '🟡';
     
     resultContainer.innerHTML = `
-      <div class="signal-card">
-        <div class="signal-header">
-          <div class="signal-badge ${assessment.riskLevel}">Risk Level: ${assessment.riskLevel}</div>
-          <div class="sig-v">Score: ${assessment.riskScore}/100</div>
+      <div class="analysis-card modern">
+        <div class="ac-header">
+          <div class="ac-title-row">
+            <span class="ac-icon">${riskIcon}</span>
+            <span class="ac-title">Risk Assessment</span>
+          </div>
+          <span class="ac-badge modern ${riskColor}">Risk Level: ${assessment.riskLevel}</span>
         </div>
         <div class="confidence-bar-bg"><div class="confidence-bar-fill ${riskColor}" style="width: ${assessment.riskScore}%"></div></div>
-        <div class="signal-grid" style="margin-top:16px;">
-          <div class="sig-kv"><span class="sig-k">Total Value</span><span class="sig-v">₹${assessment.totalValue?.toLocaleString('en-IN')}</span></div>
-          <div class="sig-kv"><span class="sig-k">Positions</span><span class="sig-v">${assessment.positions}</span></div>
-          <div class="sig-kv"><span class="sig-k">Max Position</span><span class="sig-v">${assessment.concentration?.maxWeight}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Concentration Risk</span><span class="sig-v ${assessment.concentration?.risk === 'HIGH' ? 'bear-text' : ''}">${assessment.concentration?.risk}</span></div>
-          <div class="sig-kv"><span class="sig-k">Sectors</span><span class="sig-v">${assessment.diversification?.sectors}</span></div>
-          <div class="sig-kv"><span class="sig-k">Sector Risk</span><span class="sig-v">${assessment.diversification?.sectorRisk}</span></div>
-          <div class="sig-kv"><span class="sig-k">Avg Volatility</span><span class="sig-v">${assessment.volatility?.average}%</span></div>
-          <div class="sig-kv"><span class="sig-k">Diversification Score</span><span class="sig-v">${assessment.diversification?.score}/100</span></div>
+        
+        <div class="section-header modern">
+          <span class="section-icon">📊</span>
+          <span>Portfolio Metrics</span>
         </div>
-        ${assessment.stressTests?.length ? `
-        <div style="margin-top:16px;">
-          <div class="sig-k">Stress Test Scenarios</div>
-          <div class="signal-grid">
-            ${assessment.stressTests.map(s => `
-              <div class="sig-kv"><span class="sig-k">${s.scenario}</span><span class="sig-v bear-text">₹${Number(s.impact).toLocaleString('en-IN')}</span></div>
-            `).join('')}
+        <div class="data-grid modern">
+          <div class="data-item modern">
+            <span class="di-label">Total Value</span>
+            <span class="di-value">₹${assessment.totalValue?.toLocaleString('en-IN')}</span>
           </div>
+          <div class="data-item modern">
+            <span class="di-label">Positions</span>
+            <span class="di-value">${assessment.positions}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Max Position</span>
+            <span class="di-value">${assessment.concentration?.maxWeight}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Concentration Risk</span>
+            <span class="di-value ${assessment.concentration?.risk === 'HIGH' ? 'bear-text' : ''}">${assessment.concentration?.risk}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Sectors</span>
+            <span class="di-value">${assessment.diversification?.sectors}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Sector Risk</span>
+            <span class="di-value">${assessment.diversification?.sectorRisk}</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Avg Volatility</span>
+            <span class="di-value">${assessment.volatility?.average}%</span>
+          </div>
+          <div class="data-item modern">
+            <span class="di-label">Diversification Score</span>
+            <span class="di-value">${assessment.diversification?.score}/100</span>
+          </div>
+        </div>
+        
+        ${assessment.stressTests?.length ? `
+        <div class="section-header modern">
+          <span class="section-icon">⚡</span>
+          <span>Stress Test Scenarios</span>
+        </div>
+        <div class="data-grid modern">
+          ${assessment.stressTests.map(s => `
+            <div class="data-item modern">
+              <span class="di-label">${s.scenario}</span>
+              <span class="di-value bear-text">₹${Number(s.impact).toLocaleString('en-IN')}</span>
+            </div>
+          `).join('')}
         </div>` : ''}
+        
         ${assessment.recommendations?.length ? `
-        <div class="confluences-list" style="margin-top:16px;">
-          <div class="sig-k">Recommendations</div>
-          <ul>${assessment.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
-        </div>` : ''}
+        <div class="section-header modern">
+          <span class="section-icon">💡</span>
+          <span>Recommendations</span>
+        </div>
+        <ul class="reason-list modern">
+          ${assessment.recommendations.map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('')}
+        </ul>` : ''}
       </div>`;
   } catch (e) {
-    resultContainer.innerHTML = `<p class="bear-text">Risk assessment failed: ${e.message}</p>`;
+    resultContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Risk assessment failed: ${e.message}</span></div>`;
   }
 }
 
