@@ -55,24 +55,39 @@ router.get('/all', async (req, res) => {
 
     const allTickers = tickersRes.data?.data || [];
     const inrPairSet = new Set(pairs.map(p => p.symbol));
+    // Build tick size lookup for price precision
+    const tickMap = {};
+    pairs.forEach(p => { tickMap[p.symbol] = p.tickSz; });
+    function roundToTick(val, symbol) {
+      const ts = tickMap[symbol];
+      if (!ts || !val) return val;
+      const dp = Math.max(0, -Math.floor(Math.log10(parseFloat(ts))));
+      return +parseFloat(val).toFixed(dp);
+    }
     const inrTickers = allTickers
       .filter(t => inrPairSet.has(t.symbol))
       .map(t => {
         // Prefer WebSocket real-time price if available
         const ws = tickerWs.getTicker(t.symbol);
-        const lastPrice = ws?.price || parseFloat(t.last) || 0;
-        const pct = ws?.pricechange != null ? ws.pricechange : (parseFloat(t.percentage) || 0);
+        const lastPrice = parseFloat(t.last) || ws?.price || 0;
+        const avg = parseFloat(t.average) || 0;
+        const spread = parseFloat(t.ask) - parseFloat(t.bid);
+        const spreadPct = lastPrice > 0 ? (spread / lastPrice * 100) : 0;
+        // For illiquid pairs (>10% spread), use average-based % to avoid inflated values
+        const pct = spreadPct > 10 && avg > 0
+          ? +((lastPrice - avg) / avg * 100).toFixed(2)
+          : (parseFloat(t.percentage) || 0);
         return {
           pair: t.symbol,
           baseAsset: t.symbol.split('-')[0],
-          market: lastPrice,
-          buy: ws?.bid || t.bid,
-          sell: ws?.ask || t.ask,
+          market: roundToTick(lastPrice, t.symbol),
+          buy: roundToTick(ws?.bid || t.bid, t.symbol),
+          sell: roundToTick(ws?.ask || t.ask, t.symbol),
           pricechange: pct,
           volume: t.baseVolume,
           volumeQt: t.quoteVolume,
-          high: ws?.high || t.high,
-          low: ws?.low || t.low,
+          high: roundToTick(ws?.high || t.high, t.symbol),
+          low: roundToTick(ws?.low || t.low, t.symbol),
           open: t.open,
           close: t.close,
           wsLive: !!ws?.price
@@ -167,8 +182,10 @@ router.get('/analyze/:coin', async (req, res) => {
     // Current price from ticker — prefer WebSocket real-time price
     const tickerData = tickerRes.status === 'fulfilled' ? tickerRes.value.data?.data : null;
     const ws = tickerWs.getTicker(symbol);
-    const currentPrice = ws?.price || (tickerData ? parseFloat(tickerData.close) : (ohlcv.length > 0 ? ohlcv[ohlcv.length - 1].close : 0));
-    const change24h = ws?.pricechange != null ? ws.pricechange : (tickerData ? parseFloat(tickerData.percentage) : 0);
+    const currentPrice = ws?.price || (tickerData ? parseFloat(tickerData.last) : (ohlcv.length > 0 ? ohlcv[ohlcv.length - 1].close : 0));
+    const tickerAvg = tickerData ? parseFloat(tickerData.average) : 0;
+    // Use average (24h midpoint) for accurate % — avoids inflated values on illiquid pairs
+    const change24h = tickerAvg > 0 ? +((currentPrice - tickerAvg) / tickerAvg * 100).toFixed(2) : 0;
 
     // Calculate indicators
     const indicators = ohlcv.length >= 26 ? calculateIndicators(ohlcv) : null;

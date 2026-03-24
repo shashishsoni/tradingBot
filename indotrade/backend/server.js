@@ -85,8 +85,14 @@ app.get('/api/watchlist/unified', async (req, res) => {
       .filter(t => t.symbol.endsWith('-INR'))
       .map(t => {
         const ws = tickerWs.getTicker(t.symbol);
-        const pct = ws?.pricechange != null ? ws.pricechange : (parseFloat(t.percentage) || 0);
-        const price = ws?.price || parseFloat(t.last) || 0;
+        const price = parseFloat(t.last) || ws?.price || 0;
+        const avg = parseFloat(t.average) || 0;
+        const spread = parseFloat(t.ask) - parseFloat(t.bid);
+        const spreadPct = price > 0 ? (spread / price * 100) : 0;
+        // For illiquid pairs (>10% spread), use average-based % to avoid inflated values
+        const pct = spreadPct > 10 && avg > 0
+          ? +((price - avg) / avg * 100).toFixed(2)
+          : (parseFloat(t.percentage) || 0);
         const vol = parseFloat(t.quoteVolume) || 0;
         let rec = 'HOLD', conf = 5;
         if (pct > 5) { rec = 'BUY'; conf = 7; }
