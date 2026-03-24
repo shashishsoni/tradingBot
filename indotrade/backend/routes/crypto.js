@@ -49,26 +49,20 @@ router.get('/all', async (req, res) => {
     const inrPairSet = new Set(pairs.map(p => p.symbol));
     const inrTickers = allTickers
       .filter(t => inrPairSet.has(t.symbol))
-      .map(t => {
-        const last = parseFloat(t.last) || 0;
-        const open = parseFloat(t.open) || 0;
-        // Compute change from current price (last) vs 24h open — avoids inflated % on illiquid pairs
-        const pct = open > 0 ? +((last - open) / open * 100).toFixed(2) : parseFloat(t.percentage) || 0;
-        return {
+      .map(t => ({
           pair: t.symbol,
           baseAsset: t.symbol.split('-')[0],
           market: t.last,
           buy: t.bid,
           sell: t.ask,
-          pricechange: pct,
+          pricechange: parseFloat(t.percentage) || 0,
           volume: t.baseVolume,
           volumeQt: t.quoteVolume,
           high: t.high,
           low: t.low,
           open: t.open,
           close: t.close
-        };
-      });
+        }));
     res.json(inrTickers);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -158,8 +152,7 @@ router.get('/analyze/:coin', async (req, res) => {
     // Current price from ticker
     const tickerData = tickerRes.status === 'fulfilled' ? tickerRes.value.data?.data : null;
     const currentPrice = tickerData ? parseFloat(tickerData.last) : (ohlcv.length > 0 ? ohlcv[ohlcv.length - 1].close : 0);
-    const tickerOpen = tickerData ? parseFloat(tickerData.open) : 0;
-    const change24h = tickerOpen > 0 ? +((currentPrice - tickerOpen) / tickerOpen * 100).toFixed(2) : 0;
+    const change24h = tickerData ? parseFloat(tickerData.percentage) : 0;
 
     // Calculate indicators
     const indicators = ohlcv.length >= 26 ? calculateIndicators(ohlcv) : null;

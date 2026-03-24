@@ -83,10 +83,7 @@ app.get('/api/watchlist/unified', async (req, res) => {
     const cryptoItems = allTickers
       .filter(t => t.symbol.endsWith('-INR'))
       .map(t => {
-        const last = parseFloat(t.last) || 0;
-        const open = parseFloat(t.open) || 0;
-        // Compute change from current price (last) vs 24h open — avoids inflated % on illiquid pairs
-        const pct = open > 0 ? +((last - open) / open * 100).toFixed(2) : parseFloat(t.percentage) || 0;
+        const pct = parseFloat(t.percentage) || 0;
         const vol = parseFloat(t.quoteVolume) || 0;
         let rec = 'HOLD', conf = 5;
         if (pct > 5) { rec = 'BUY'; conf = 7; }
@@ -95,7 +92,7 @@ app.get('/api/watchlist/unified', async (req, res) => {
         else if (pct < -2) { rec = 'SELL'; conf = 6; }
         return {
           type: 'CRYPTO', symbol: t.symbol, name: t.symbol.split('-')[0],
-          price: last, changePct: pct,
+          price: parseFloat(t.last) || 0, changePct: pct,
           volume: vol, recommendation: rec, confidence: conf
         };
       });
