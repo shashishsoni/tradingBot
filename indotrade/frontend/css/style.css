@@ -455,6 +455,17 @@ select:focus, input:focus {
 /* Quick Utils */
 .flex-row { display: flex; justify-content: space-between; align-items: center; }
 
+/* Signal Badges (used in dashboard + watchlist) */
+.signal-mini {
+  font-size: 0.7rem; padding: 3px 10px; border-radius: 3px;
+  font-weight: 700; display: inline-block;
+}
+.signal-mini.BUY { background: rgba(0,212,170,0.15); color: var(--bull); }
+.signal-mini.STRONG.BUY, .signal-mini.STRONG\ BUY { background: rgba(0,212,170,0.25); color: var(--bull); }
+.signal-mini.SELL { background: rgba(255,68,102,0.15); color: var(--bear); }
+.signal-mini.STRONG.SELL, .signal-mini.STRONG\ SELL { background: rgba(255,68,102,0.25); color: var(--bear); }
+.signal-mini.HOLD { background: rgba(245,158,11,0.15); color: var(--warn); }
+
 /* Unified Watchlist */
 .watchlist-header { margin-bottom: 16px; }
 .watchlist-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }

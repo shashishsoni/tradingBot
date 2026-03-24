@@ -269,14 +269,29 @@ async function runSignalScan() {
   if (!container) return;
 
   if (btn) btn.disabled = true;
-  if (status) status.textContent = 'Scanning...';
+  if (status) status.textContent = 'Scanning... (may take 30s on first load)';
 
   try {
-    const result = await api.signals.scan('all', 10);
+    // Add timeout for cold starts
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    const result = await fetch(API + '/signals/scan?type=all&limit=10&_t=' + Date.now(), {
+      cache: 'no-store',
+      signal: controller.signal
+    }).then(r => {
+      clearTimeout(timeout);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
     renderScanResults(result);
-    if (status) status.textContent = '(' + result.totalScanned + ' assets scanned)';
+    if (status) status.textContent = '(' + (result.totalScanned || 0) + ' assets scanned)';
   } catch (e) {
-    if (status) status.textContent = 'Scan failed: ' + e.message;
+    if (e.name === 'AbortError') {
+      if (status) status.textContent = 'Timeout — server waking up. Click Scan to retry.';
+    } else {
+      if (status) status.textContent = 'Error: ' + e.message;
+    }
+    container.innerHTML = '<p class="muted" style="padding:16px;">Server may be waking up (cold start). Click "Scan Market" to retry.</p>';
   }
   if (btn) btn.disabled = false;
 }

@@ -27,6 +27,9 @@ const DEFAULT_CRYPTO_WATCHLIST = ['BTC-INR','ETH-INR','SOL-INR','XRP-INR','BNB-I
 let CRYPTO_WATCHLIST = [...DEFAULT_CRYPTO_WATCHLIST];
 let ALL_CRYPTO_PAIRS = [];
 
+// Unified signal lookup: symbol → { recommendation, confidence }
+let SIGNAL_LOOKUP = {};
+
 function updateWatchlistLastUpdated() {
   const el = document.getElementById('watchlist-last-updated');
   if (!el) return;
@@ -44,11 +47,25 @@ async function initCryptoPairs() {
   try {
     const pairs = await api.crypto.pairs();
     ALL_CRYPTO_PAIRS = pairs.map(p => p.symbol);
-    // Keep default watchlist but validate they exist on ZebPay
     CRYPTO_WATCHLIST = DEFAULT_CRYPTO_WATCHLIST.filter(s => ALL_CRYPTO_PAIRS.includes(s));
   } catch (e) {
-    // Fallback to defaults if API unavailable
     CRYPTO_WATCHLIST = [...DEFAULT_CRYPTO_WATCHLIST];
+  }
+}
+
+// Fetch unified data to get technical-based signals for dashboard
+async function loadUnifiedSignals() {
+  try {
+    const data = await api.watchlist.unified();
+    SIGNAL_LOOKUP = {};
+    (data.equity || []).forEach(e => {
+      SIGNAL_LOOKUP[e.symbol] = { recommendation: e.recommendation, confidence: e.confidence };
+    });
+    (data.crypto || []).forEach(c => {
+      SIGNAL_LOOKUP[c.symbol] = { recommendation: c.recommendation, confidence: c.confidence };
+    });
+  } catch (e) {
+    // Fallback: no signals available
   }
 }
 
@@ -57,14 +74,15 @@ async function renderWatchlist() {
   const select = document.getElementById('ai-asset-select');
   if (!tbody || !select) return;
 
-  // Fetch available crypto pairs first
-  await initCryptoPairs();
+  // Fetch crypto pairs and unified signals in parallel
+  await Promise.all([initCryptoPairs(), loadUnifiedSignals()]);
 
   tbody.innerHTML = EQUITY_WATCHLIST.map(sym => `
     <tr id="row-${sym}">
-      <td>${sym.replace('.NS', '')}</td>
+      <td>${sym.replace('.NS', '').replace('^', '')}</td>
       <td class="price skeleton-text"></td>
       <td class="change skeleton-text"></td>
+      <td class="signal-cell skeleton-text"></td>
       <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym}', 'EQUITY')">Analyze</button></td>
     </tr>
   `).join('') + CRYPTO_WATCHLIST.map(sym => `
@@ -72,20 +90,37 @@ async function renderWatchlist() {
       <td>${sym}</td>
       <td class="price skeleton-text"></td>
       <td class="change skeleton-text"></td>
+      <td class="signal-cell skeleton-text"></td>
       <td><button class="btn-action" onclick="analyzeWatchlistAsset('${sym.replace('-','/')}', 'CRYPTO')">Analyze</button></td>
     </tr>
   `).join('');
 
   // Populate Select — show all available INR pairs for analysis
   const allPairsForSelect = ALL_CRYPTO_PAIRS.length > 0 ? ALL_CRYPTO_PAIRS : CRYPTO_WATCHLIST;
-  select.innerHTML = '<optgroup label="Equity">' + EQUITY_WATCHLIST.map(s => `<option value="${s}|EQUITY">${s.replace('.NS','')}</option>`).join('') + '</optgroup>' +
+  select.innerHTML = '<optgroup label="Equity">' + EQUITY_WATCHLIST.map(s => `<option value="${s}|EQUITY">${s.replace('.NS','').replace('^','')}</option>`).join('') + '</optgroup>' +
     '<optgroup label="Crypto">' + allPairsForSelect.map(s => `<option value="${s.replace('-','/')}|CRYPTO">${s}</option>`).join('') + '</optgroup>';
 
   updateEquityPrices();
   updateCryptoPrices();
 }
 
+function renderSignalBadge(row, symbol) {
+  const cell = row.querySelector('.signal-cell');
+  if (!cell) return;
+  const sig = SIGNAL_LOOKUP[symbol];
+  if (sig) {
+    const cls = sig.recommendation === 'BUY' ? 'bull-text' : sig.recommendation === 'SELL' ? 'bear-text' : 'muted';
+    cell.innerHTML = `<span class="signal-mini ${sig.recommendation}">${sig.recommendation}</span>`;
+    cell.classList.remove('skeleton-text');
+  } else {
+    cell.innerHTML = '<span class="muted">—</span>';
+    cell.classList.remove('skeleton-text');
+  }
+}
+
 async function updateWatchlistPrices() {
+  // Refresh unified signals periodically
+  await loadUnifiedSignals();
   updateEquityPrices();
   updateCryptoPrices();
 }
@@ -109,6 +144,7 @@ async function updateEquityPrices() {
           row.querySelector('.change').innerHTML = '<span class="muted">—</span>';
         }
         row.querySelector('.change').classList.remove('skeleton-text');
+        renderSignalBadge(row, d.symbol);
         updated = true;
       }
     });
@@ -132,6 +168,7 @@ async function updateCryptoPrices() {
         row.querySelector('.price').classList.remove('skeleton-text');
         row.querySelector('.change').innerHTML = `<span class="${chg >= 0 ? 'bull-text' : 'bear-text'}">${chg >= 0 ? '+' : ''}${chg}%</span>`;
         row.querySelector('.change').classList.remove('skeleton-text');
+        renderSignalBadge(row, d.pair);
         updated = true;
       
         if (d.pair === 'BTC-INR') {
