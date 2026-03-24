@@ -2,6 +2,8 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 const MFAPI = 'https://api.mfapi.in/mf/';
+const mfCache = new Map();
+const MF_CACHE_MS = 10 * 60 * 1000;
 
 const WATCHLIST = [
   { code: '119598', name: 'Mirae Asset Large Cap' },
@@ -12,16 +14,34 @@ const WATCHLIST = [
 ];
 
 router.get('/watchlist', async (req, res) => {
-  const results = await Promise.allSettled(WATCHLIST.map(m => axios.get(`${MFAPI}${m.code}`, { timeout: 6000 })));
-  res.json(results.map((r, i) => ({
-    ...WATCHLIST[i],
-    ...(r.status === 'fulfilled' ? {
-      nav: r.value.data.data[0].nav,
-      date: r.value.data.data[0].date,
-      prevNav: r.value.data.data[1]?.nav,
-      change: +(parseFloat(r.value.data.data[0].nav) - parseFloat(r.value.data.data[1]?.nav)).toFixed(4)
-    } : { error: true })
-  })));
+  const now = Date.now();
+  const results = await Promise.allSettled(WATCHLIST.map(m => axios.get(`${MFAPI}${m.code}`, { timeout: 8000 })));
+
+  const payload = results.map((r, i) => {
+    const item = WATCHLIST[i];
+    if (r.status !== 'fulfilled') {
+      const cached = mfCache.get(item.code);
+      if (cached && now - cached.t < MF_CACHE_MS) return { ...item, ...cached.data, stale: true };
+      return { ...item, error: true };
+    }
+
+    const rows = Array.isArray(r.value.data?.data) ? r.value.data.data : [];
+    if (!rows.length) return { ...item, error: true };
+    const latest = rows[0] || {};
+    const prev = rows[1] || {};
+    const nav = Number.parseFloat(latest.nav);
+    const prevNav = Number.parseFloat(prev.nav);
+    const out = {
+      nav: Number.isFinite(nav) ? +nav.toFixed(4) : null,
+      date: latest.date || null,
+      prevNav: Number.isFinite(prevNav) ? +prevNav.toFixed(4) : null,
+      change: Number.isFinite(nav) && Number.isFinite(prevNav) ? +(nav - prevNav).toFixed(4) : null
+    };
+    mfCache.set(item.code, { t: now, data: out });
+    return { ...item, ...out };
+  });
+
+  res.json(payload);
 });
 
 router.get('/search/:q', async (req, res) => {

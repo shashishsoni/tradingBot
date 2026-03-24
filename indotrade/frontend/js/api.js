@@ -3,10 +3,16 @@ const API = (() => {
   if (base) return base.replace(/\/$/, '') + '/api';
   const local = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   if (local) return 'http://localhost:3001/api';
-  return 'https://your-backend.onrender.com/api';
+  return '';
 })();
 
+function ensureApiBase() {
+  if (API) return;
+  throw new Error('Set window.INDOTRADE_API_BASE in js/config.js to your backend Render URL.');
+}
+
 async function fetchJSON(url) {
+  ensureApiBase();
   try {
     const ts = url.includes('?') ? `&_t=${Date.now()}` : `?_t=${Date.now()}`;
     const res = await fetch(url + ts, { cache: 'no-store' });
@@ -21,7 +27,10 @@ async function fetchJSON(url) {
 const api = {
   equity: {
     quote: (symbol) => fetchJSON(`${API}/equity/quote/${symbol}`),
-    batch: (symbols) => fetch(`${API}/equity/batch`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbols}) }).then(r=>r.json())
+    batch: (symbols) => {
+      ensureApiBase();
+      return fetch(`${API}/equity/batch`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbols}) }).then(r=>r.json());
+    }
   },
   crypto: {
     all: () => fetchJSON(`${API}/crypto/all`),
@@ -35,15 +44,18 @@ const api = {
   ipo: { list: () => fetchJSON(`${API}/ipo`) },
   fo: { info: () => fetchJSON(`${API}/fo/info`) },
   ai: {
-    analyze: (marketData, assetType, capital) => fetch(`${API}/ai/analyze`, {
-      method: 'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ marketData, assetType, capital })
-    }).then(async r => {
-      if (!r.ok) {
-        const err = await r.json();
-        throw new Error(err.error || 'AI Analysis Failed');
-      }
-      return r.json();
-    })
+    analyze: (marketData, assetType, capital) => {
+      ensureApiBase();
+      return fetch(`${API}/ai/analyze`, {
+        method: 'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ marketData, assetType, capital })
+      }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || 'AI Analysis Failed');
+        }
+        return r.json();
+      });
+    }
   }
 };

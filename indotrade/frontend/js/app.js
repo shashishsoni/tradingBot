@@ -9,12 +9,12 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 4500);
 }
 
-// Ultra-fast polling intervals (as requested)
+// Refresh only APIs (not full page re-render) with stable intervals
 const REFRESH_INTERVAL_MS = {
   clock: 1000,
-  equity: 100,
-  crypto: 50,
-  tabs: 100
+  equity: 15000,
+  crypto: 5000,
+  tabs: 45000
 };
 
 const refreshInFlight = {
@@ -123,10 +123,19 @@ function renderBasicTable(headers, rows) {
   return `<div class="table-container"><table>${thead}${tbody}</table></div>`;
 }
 
+function fmtPct(pct) {
+  const n = Number(pct);
+  if (!Number.isFinite(n)) return '—';
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+}
+
 async function renderEquityTabData() {
   const container = document.getElementById('tab-equity');
   if (!container) return;
-  container.innerHTML = '<h2>Equity Analysis</h2><p class="placeholder-text">Loading...</p>';
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<h2>Equity Analysis</h2><p class="placeholder-text">Loading...</p>';
+    container.dataset.loaded = '1';
+  }
   try {
     const symbols = (typeof EQUITY_WATCHLIST !== 'undefined' ? EQUITY_WATCHLIST : ['^NSEI', '^BSESN']);
     const eqData = await api.equity.batch(symbols);
@@ -139,7 +148,17 @@ async function renderEquityTabData() {
         : '—';
       return [d.symbol.replace('.NS', ''), `₹${Number(d.price).toLocaleString('en-IN')}`, pctCell];
     });
-    container.innerHTML = `<h2>Equity Analysis</h2>${renderBasicTable(['Asset', 'Price', 'Change'], rows)}`;
+    const buyable = valid.filter(d => Number(d.changePct) > 0).sort((a, b) => Number(b.changePct) - Number(a.changePct));
+    const best = buyable[0];
+    const detail = best
+      ? `<div class="signal-card" style="margin-top:16px;">
+          <div class="sig-k"><strong>Best possibility (momentum-based)</strong></div>
+          <p><strong>${best.symbol.replace('.NS','')}</strong> at <strong>₹${Number(best.price).toLocaleString('en-IN')}</strong> with change <strong>${fmtPct(best.changePct)}</strong>.</p>
+          <p>Reason: strongest positive session momentum among tracked equities. Wait for pullback near support before entry; keep stop-loss strict.</p>
+        </div>`
+      : `<div class="signal-card" style="margin-top:16px;"><p>No strong positive momentum right now. Prefer HOLD / wait-for-setup.</p></div>`;
+
+    container.innerHTML = `<h2>Equity Analysis</h2>${renderBasicTable(['Asset', 'Price', 'Change'], rows)}${detail}`;
   } catch (e) {
     container.innerHTML = '<h2>Equity Analysis</h2><p class="bear-text">Unable to load equity data.</p>';
   }
@@ -149,7 +168,10 @@ async function renderFoTabData() {
   const title = document.getElementById('fo-expiry-warning');
   const container = document.getElementById('fo-info-container');
   if (!container) return;
-  container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+    container.dataset.loaded = '1';
+  }
   try {
     const info = await api.fo.info();
     if (title) title.innerText = info.expiryWarning || 'F&O Options Analysis';
@@ -159,7 +181,10 @@ async function renderFoTabData() {
       ['NIFTY', Number.isFinite(Number(info.nifty)) ? `₹${Number(info.nifty).toLocaleString('en-IN')}` : '—'],
       ['BANKNIFTY', Number.isFinite(Number(info.banknifty)) ? `₹${Number(info.banknifty).toLocaleString('en-IN')}` : '—']
     ];
-    container.innerHTML = renderBasicTable(['Metric', 'Value'], rows);
+    const guidance = info.isExpiryWeek
+      ? '<p class="bear-text" style="margin-top:10px;">Expiry week risk is high. Reduce position size by 40-50%, avoid revenge trades.</p>'
+      : '<p style="margin-top:10px;">Non-expiry week: normal volatility profile. Use strict RR >= 1:1.5.</p>';
+    container.innerHTML = renderBasicTable(['Metric', 'Value'], rows) + guidance;
   } catch (e) {
     if (title) title.innerText = 'F&O Options Analysis';
     container.innerHTML = '<p class="bear-text">Unable to load F&O data.</p>';
@@ -169,7 +194,10 @@ async function renderFoTabData() {
 async function renderCryptoTabData() {
   const container = document.getElementById('crypto-global-container');
   if (!container) return;
-  container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+    container.dataset.loaded = '1';
+  }
   try {
     const [global, all] = await Promise.all([api.crypto.global(), api.crypto.all()]);
     const topPairs = (all || []).filter(x => !x.error).slice(0, 8).map(x => {
@@ -182,9 +210,19 @@ async function renderCryptoTabData() {
       ['BTC Dominance', Number.isFinite(Number(global.btcDominance)) ? `${global.btcDominance}%` : '—'],
       ['Fear & Greed', `${global.fearGreed ?? '—'} ${global.fearGreedLabel ? `(${global.fearGreedLabel})` : ''}`]
     ];
+    const best = (all || [])
+      .filter(x => !x.error && Number.isFinite(Number.parseFloat(x.pricechange)))
+      .sort((a, b) => Number.parseFloat(b.pricechange) - Number.parseFloat(a.pricechange))[0];
+    const bestBlock = best
+      ? `<div class="signal-card" style="margin-top:16px;">
+          <div class="sig-k"><strong>Best crypto possibility (trend snapshot)</strong></div>
+          <p><strong>${best.pair}</strong> is showing <strong>${fmtPct(best.pricechange)}</strong> move.</p>
+          <p>If BTC dominance is high, prefer BTC/ETH over high-beta alts. Use staggered entries and strict stop-loss.</p>
+        </div>`
+      : '';
     container.innerHTML =
       `<h3>Global Market</h3>${renderBasicTable(['Metric', 'Value'], summaryRows)}
-       <h3 style="margin-top:16px;">Top INR Pairs</h3>${renderBasicTable(['Pair', 'Price'], topPairs)}`;
+       <h3 style="margin-top:16px;">Top INR Pairs</h3>${renderBasicTable(['Pair', 'Price'], topPairs)}${bestBlock}`;
   } catch (e) {
     container.innerHTML = '<p class="bear-text">Unable to load crypto data.</p>';
   }
@@ -193,7 +231,10 @@ async function renderCryptoTabData() {
 async function renderMfTabData() {
   const container = document.getElementById('mf-container');
   if (!container) return;
-  container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+    container.dataset.loaded = '1';
+  }
   try {
     const data = await api.mf.watchlist();
     const rows = data.map(f => {
@@ -205,7 +246,18 @@ async function renderMfTabData() {
         : '—';
       return [f.name, Number.isFinite(nav) ? nav.toFixed(4) : '—', f.date || '—', chgCell];
     });
-    container.innerHTML = renderBasicTable(['Fund', 'NAV', 'Date', 'Change'], rows);
+    const ranked = data
+      .filter(f => !f.error && Number.isFinite(Number(f.change)))
+      .sort((a, b) => Number(b.change) - Number(a.change));
+    const best = ranked[0];
+    const note = best
+      ? `<div class="signal-card" style="margin-top:16px;">
+          <div class="sig-k"><strong>Best MF possibility (watchlist momentum)</strong></div>
+          <p><strong>${best.name}</strong> has strongest latest NAV delta (<strong>${Number(best.change).toFixed(4)}</strong>).</p>
+          <p>MF is long-horizon. Prefer SIP/STP style entries over lump-sum chasing one-day moves.</p>
+        </div>`
+      : '<p class="bear-text" style="margin-top:10px;">MF API data delayed/unavailable. Retrying automatically.</p>';
+    container.innerHTML = renderBasicTable(['Fund', 'NAV', 'Date', 'Change'], rows) + note;
   } catch (e) {
     container.innerHTML = '<p class="bear-text">Unable to load mutual fund data.</p>';
   }
@@ -214,11 +266,28 @@ async function renderMfTabData() {
 async function renderIpoTabData() {
   const container = document.getElementById('ipo-container');
   if (!container) return;
-  container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+  if (!container.dataset.loaded) {
+    container.innerHTML = '<p class="placeholder-text">Loading...</p>';
+    container.dataset.loaded = '1';
+  }
   try {
     const list = await api.ipo.list();
     const rows = list.map(i => [i.name, i.status, i.price, i.close || i.listedAt || '—', i.exchange || '—']);
-    container.innerHTML = renderBasicTable(['IPO', 'Status', 'Price Band', 'Close/Listed', 'Exchange'], rows);
+    const listed = list.filter(i => i.status === 'Listed' && typeof i.gain === 'string')
+      .map(i => ({ ...i, gainNum: Number.parseFloat(i.gain) }))
+      .filter(i => Number.isFinite(i.gainNum))
+      .sort((a, b) => b.gainNum - a.gainNum);
+    const open = list.filter(i => i.status === 'Open');
+    const bestListed = listed[0];
+    const bestOpen = open[0];
+    const report = `
+      <div class="signal-card" style="margin-top:16px;">
+        <div class="sig-k"><strong>AI-style IPO report (past + present snapshot)</strong></div>
+        <p><strong>Past listing strength:</strong> ${bestListed ? `${bestListed.name} (${bestListed.gain})` : 'insufficient listed history'}.</p>
+        <p><strong>Current opportunity:</strong> ${bestOpen ? `${bestOpen.name} (${bestOpen.price})` : 'No open IPO in list right now'}.</p>
+        <p><strong>Decision framework:</strong> prioritize profitability visibility, valuation comfort, and sector momentum; avoid overhyped subscription without fundamentals.</p>
+      </div>`;
+    container.innerHTML = renderBasicTable(['IPO', 'Status', 'Price Band', 'Close/Listed', 'Exchange'], rows) + report;
   } catch (e) {
     container.innerHTML = '<p class="bear-text">Unable to load IPO data.</p>';
   }
@@ -229,12 +298,18 @@ function renderRiskTabData() {
   if (!container) return;
   const capital = Number.parseFloat(document.getElementById('ai-capital-input')?.value || '100000');
   const maxRisk = Number.isFinite(capital) ? (capital * 0.02) : 2000;
+  const sl05 = Number.isFinite(capital) ? Math.floor(maxRisk / (capital * 0.005 || 1)) : 0;
+  const sl10 = Number.isFinite(capital) ? Math.floor(maxRisk / (capital * 0.01 || 1)) : 0;
   container.innerHTML = `
     <h2>Risk Engine</h2>
     <div class="signal-card">
       <div class="sig-kv"><span class="sig-k">Max Risk Per Trade (2%)</span><span class="sig-v">₹${maxRisk.toLocaleString('en-IN')}</span></div>
-      <div class="sig-kv"><span class="sig-k">Suggested Rule</span><span class="sig-v">Stop after 3 consecutive losses</span></div>
-      <div class="sig-kv"><span class="sig-k">Position Sizing</span><span class="sig-v">Risk / (Entry - StopLoss)</span></div>
+      <div class="sig-kv"><span class="sig-k">Daily Max Drawdown</span><span class="sig-v">₹${(maxRisk * 2).toLocaleString('en-IN')} (stop trading after hit)</span></div>
+      <div class="sig-kv"><span class="sig-k">Consecutive Loss Cutoff</span><span class="sig-v">3 trades</span></div>
+      <div class="sig-kv"><span class="sig-k">Position Sizing Formula</span><span class="sig-v">Qty = Risk / (Entry - StopLoss)</span></div>
+      <div class="sig-kv"><span class="sig-k">Example Qty (0.5% SL)</span><span class="sig-v">${sl05} units (approx)</span></div>
+      <div class="sig-kv"><span class="sig-k">Example Qty (1.0% SL)</span><span class="sig-v">${sl10} units (approx)</span></div>
+      <p style="margin-top:10px;">Best possibility improves when trend + volume + risk-reward align. If one is weak, reduce size or skip trade.</p>
     </div>
   `;
 }
