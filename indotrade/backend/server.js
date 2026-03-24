@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const tickerWs = require('./services/tickerWs');
 const { assessPortfolioRisk, calculatePositionRisk } = require('./utils/riskEngine');
 
 const app = express();
@@ -78,12 +79,14 @@ app.get('/api/watchlist/unified', async (req, res) => {
       ))
     ]);
 
-    // Process crypto
+    // Process crypto — prefer WebSocket real-time prices
     const allTickers = tickersRes.status === 'fulfilled' ? (tickersRes.value.data?.data || []) : [];
     const cryptoItems = allTickers
       .filter(t => t.symbol.endsWith('-INR'))
       .map(t => {
-        const pct = parseFloat(t.percentage) || 0;
+        const ws = tickerWs.getTicker(t.symbol);
+        const pct = ws?.pricechange != null ? ws.pricechange : (parseFloat(t.percentage) || 0);
+        const price = ws?.price || parseFloat(t.last) || 0;
         const vol = parseFloat(t.quoteVolume) || 0;
         let rec = 'HOLD', conf = 5;
         if (pct > 5) { rec = 'BUY'; conf = 7; }
@@ -92,7 +95,7 @@ app.get('/api/watchlist/unified', async (req, res) => {
         else if (pct < -2) { rec = 'SELL'; conf = 6; }
         return {
           type: 'CRYPTO', symbol: t.symbol, name: t.symbol.split('-')[0],
-          price: parseFloat(t.last) || 0, changePct: pct,
+          price, changePct: pct,
           volume: vol, recommendation: rec, confidence: conf
         };
       });

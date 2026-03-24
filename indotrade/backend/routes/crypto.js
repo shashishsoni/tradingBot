@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 const { calculateIndicators } = require('../utils/indicators');
+const tickerWs = require('../services/tickerWs');
 
 const SAPI = 'https://sapi.zebpay.com/api/v2';
 const GCK = 'https://api.coingecko.com/api/v3/';
@@ -34,35 +35,49 @@ async function getInrPairs() {
 router.get('/pairs', async (req, res) => {
   try {
     const pairs = await getInrPairs();
+    // Subscribe all pairs to WebSocket for real-time updates
+    tickerWs.subscribeAll(pairs.map(p => p.symbol));
     res.json(pairs);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /all — live tickers for ALL INR pairs (single allTickers call)
+// GET /all — live tickers for ALL INR pairs (WebSocket real-time + REST fallback)
 router.get('/all', async (req, res) => {
   try {
     const [tickersRes, pairs] = await Promise.all([
       axios.get(`${SAPI}/market/allTickers`, { timeout: 8000 }),
       getInrPairs()
     ]);
+    // Subscribe all pairs to WebSocket for real-time updates
+    tickerWs.subscribeAll(pairs.map(p => p.symbol));
+    // Wait briefly for initial WebSocket data to arrive
+    await new Promise(r => setTimeout(r, 800));
+
     const allTickers = tickersRes.data?.data || [];
     const inrPairSet = new Set(pairs.map(p => p.symbol));
     const inrTickers = allTickers
       .filter(t => inrPairSet.has(t.symbol))
-      .map(t => ({
+      .map(t => {
+        // Prefer WebSocket real-time price if available
+        const ws = tickerWs.getTicker(t.symbol);
+        const lastPrice = ws?.price || parseFloat(t.last) || 0;
+        const pct = ws?.pricechange != null ? ws.pricechange : (parseFloat(t.percentage) || 0);
+        return {
           pair: t.symbol,
           baseAsset: t.symbol.split('-')[0],
-          market: t.last,
-          buy: t.bid,
-          sell: t.ask,
-          pricechange: parseFloat(t.percentage) || 0,
+          market: lastPrice,
+          buy: ws?.bid || t.bid,
+          sell: ws?.ask || t.ask,
+          pricechange: pct,
           volume: t.baseVolume,
           volumeQt: t.quoteVolume,
-          high: t.high,
-          low: t.low,
+          high: ws?.high || t.high,
+          low: ws?.low || t.low,
           open: t.open,
-          close: t.close
-        }));
+          close: t.close,
+          wsLive: !!ws?.price
+        };
+      });
     res.json(inrTickers);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -149,10 +164,11 @@ router.get('/analyze/:coin', async (req, res) => {
       close: parseFloat(close)
     }));
 
-    // Current price from ticker
+    // Current price from ticker — prefer WebSocket real-time price
     const tickerData = tickerRes.status === 'fulfilled' ? tickerRes.value.data?.data : null;
-    const currentPrice = tickerData ? parseFloat(tickerData.last) : (ohlcv.length > 0 ? ohlcv[ohlcv.length - 1].close : 0);
-    const change24h = tickerData ? parseFloat(tickerData.percentage) : 0;
+    const ws = tickerWs.getTicker(symbol);
+    const currentPrice = ws?.price || (tickerData ? parseFloat(tickerData.close) : (ohlcv.length > 0 ? ohlcv[ohlcv.length - 1].close : 0));
+    const change24h = ws?.pricechange != null ? ws.pricechange : (tickerData ? parseFloat(tickerData.percentage) : 0);
 
     // Calculate indicators
     const indicators = ohlcv.length >= 26 ? calculateIndicators(ohlcv) : null;
