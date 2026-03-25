@@ -329,34 +329,54 @@ function renderScanResults(result) {
   const buys = result.topBuys || [];
   const sells = result.topSells || [];
 
+  // Check if we have both buys and sells - use wrapper grid
+  const useWrapper = buys.length > 0 && sells.length > 0;
   let html = '';
 
+  if (useWrapper) {
+    html += '<div class="scan-results-wrapper">';
+  }
+
   if (buys.length > 0) {
-    html += '<div class="signal-card BUY" style="flex:1;min-width:300px;">' +
+    html += '<div class="signal-card BUY">' +
       '<div class="signal-header"><div class="signal-badge BUY">TOP BUYS</div><div class="sig-v">' + buys.length + ' signals</div></div>' +
-      '<div style="margin-top:12px;">' +
+      '<div class="signal-items">' +
       buys.map(function(b) {
-        return '<div class="flex-row" style="padding:6px 0;border-bottom:1px solid var(--border);">' +
-          '<div><strong>' + b.name + '</strong><span class="type-badge ' + b.type + '" style="margin-left:6px;">' + (b.type === 'CRYPTO' ? 'CRYPTO' : 'EQ') + '</span></div>' +
-          '<div class="bull-text">' + b.signal + ' (' + (b.score > 0 ? '+' : '') + b.score + ')</div>' +
-          '<div class="sig-k">RSI ' + (b.rsi ? b.rsi.toFixed(0) : '-') + ' | ' + (b.trend || '-') + ' | ' + (b.macd || '-') + '</div>' +
-          '</div>';
+        return '<div class="signal-item">' +
+          '<div class="signal-item-left">' +
+            '<span class="signal-item-name">' + b.name + '</span>' +
+            '<span class="type-badge ' + b.type + '">' + (b.type === 'CRYPTO' ? 'CRYPTO' : 'EQ') + '</span>' +
+          '</div>' +
+          '<div class="signal-item-right">' +
+            '<span class="signal-item-score">' + b.signal + ' (' + (b.score > 0 ? '+' : '') + b.score + ')</span>' +
+            '<span class="signal-item-details">RSI ' + (b.rsi ? b.rsi.toFixed(0) : '-') + ' | ' + (b.trend || '-') + '</span>' +
+          '</div>' +
+        '</div>';
       }).join('') +
       '</div></div>';
   }
 
   if (sells.length > 0) {
-    html += '<div class="signal-card SELL" style="flex:1;min-width:300px;">' +
+    html += '<div class="signal-card SELL">' +
       '<div class="signal-header"><div class="signal-badge SELL">TOP SELLS</div><div class="sig-v">' + sells.length + ' signals</div></div>' +
-      '<div style="margin-top:12px;">' +
+      '<div class="signal-items">' +
       sells.map(function(s) {
-        return '<div class="flex-row" style="padding:6px 0;border-bottom:1px solid var(--border);">' +
-          '<div><strong>' + s.name + '</strong><span class="type-badge ' + s.type + '" style="margin-left:6px;">' + (s.type === 'CRYPTO' ? 'CRYPTO' : 'EQ') + '</span></div>' +
-          '<div class="bear-text">' + s.signal + ' (' + s.score + ')</div>' +
-          '<div class="sig-k">RSI ' + (s.rsi ? s.rsi.toFixed(0) : '-') + ' | ' + (s.trend || '-') + ' | ' + (s.macd || '-') + '</div>' +
-          '</div>';
+        return '<div class="signal-item">' +
+          '<div class="signal-item-left">' +
+            '<span class="signal-item-name">' + s.name + '</span>' +
+            '<span class="type-badge ' + s.type + '">' + (s.type === 'CRYPTO' ? 'CRYPTO' : 'EQ') + '</span>' +
+          '</div>' +
+          '<div class="signal-item-right">' +
+            '<span class="signal-item-score">' + s.signal + ' (' + s.score + ')</span>' +
+            '<span class="signal-item-details">RSI ' + (s.rsi ? s.rsi.toFixed(0) : '-') + ' | ' + (s.trend || '-') + '</span>' +
+          '</div>' +
+        '</div>';
       }).join('') +
       '</div></div>';
+  }
+
+  if (useWrapper) {
+    html += '</div>';
   }
 
   if (buys.length === 0 && sells.length === 0) {

@@ -1562,3 +1562,726 @@ select:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ================================================
+   Signal Scanner - Fix Overlapping Buy/Sell
+   ================================================ */
+.scan-results-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+.scan-results-wrapper .signal-card {
+  min-width: 0;
+  width: 100%;
+}
+
+.scan-results-wrapper .signal-card .signal-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.scan-results-wrapper .signal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-fast);
+}
+
+.scan-results-wrapper .signal-item:hover {
+  border-color: var(--color-border-hover);
+  background: var(--color-surface-2);
+}
+
+.scan-results-wrapper .signal-item-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.scan-results-wrapper .signal-item-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.scan-results-wrapper .signal-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.scan-results-wrapper .signal-item-score {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.scan-results-wrapper .signal-item-details {
+  font-size: 0.7rem;
+  color: var(--color-text-3);
+}
+
+.scan-results-wrapper .BUY .signal-item-score {
+  color: var(--color-bull);
+}
+
+.scan-results-wrapper .SELL .signal-item-score {
+  color: var(--color-bear);
+}
+
+@media (max-width: 768px) {
+  .scan-results-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================================================
+   Modern Equity Analysis Components
+   ================================================ */
+
+/* Market Cards Grid */
+.market-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-md);
+}
+
+/* Modern Market Card */
+.market-card-modern {
+  position: relative;
+  padding: var(--space-md) var(--space-lg);
+  background: rgba(26, 29, 36, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  transition: all var(--transition-base);
+  overflow: hidden;
+}
+
+.market-card-modern::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-bull));
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.market-card-modern:hover {
+  border-color: var(--color-border-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.market-card-modern:hover::before {
+  opacity: 1;
+}
+
+.market-card-modern.bull {
+  border-left: 3px solid var(--color-bull);
+}
+
+.market-card-modern.bear {
+  border-left: 3px solid var(--color-bear);
+}
+
+.market-card-modern.bull::before {
+  background: var(--color-bull);
+}
+
+.market-card-modern.bear::before {
+  background: var(--color-bear);
+}
+
+.market-card-modern .mc-icon {
+  font-size: 1.5rem;
+  margin-bottom: var(--space-xs);
+}
+
+.market-card-modern .mc-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-2);
+  margin-bottom: var(--space-xs);
+}
+
+.market-card-modern .mc-value {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.market-card-modern .mc-change {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: var(--space-xs);
+}
+
+.market-card-modern .mc-arrow {
+  margin-right: 2px;
+}
+
+.market-card-modern .mc-sub {
+  font-size: 0.7rem;
+  color: var(--color-text-2);
+  margin-top: 2px;
+}
+
+/* Modern Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-md);
+}
+
+/* Modern Stat Card */
+.stat-card {
+  position: relative;
+  padding: var(--space-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  transition: all var(--transition-base);
+}
+
+.stat-card:hover {
+  border-color: var(--color-border-hover);
+  transform: translateY(-2px);
+}
+
+.stat-card .stat-icon {
+  font-size: 1.25rem;
+  margin-bottom: var(--space-xs);
+}
+
+.stat-card .stat-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-2);
+  margin-bottom: var(--space-xs);
+}
+
+.stat-card .stat-value {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.stat-card.gainer {
+  border-left: 3px solid var(--color-bull);
+}
+
+.stat-card.loser {
+  border-left: 3px solid var(--color-bear);
+}
+
+.stat-card.positive {
+  border-left: 3px solid var(--color-bull);
+  background: var(--color-bull-bg);
+}
+
+.stat-card.negative {
+  border-left: 3px solid var(--color-bear);
+  background: var(--color-bear-bg);
+}
+
+/* Modern Analysis Card */
+.analysis-card.modern {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.analysis-card.modern .ac-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.analysis-card.modern .ac-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.analysis-card.modern .ac-icon {
+  font-size: 1.25rem;
+}
+
+.analysis-card.modern .ac-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Modern AC Badge */
+.analysis-card.modern .ac-badge.modern {
+  padding: var(--space-xs) var(--space-md);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.3px;
+}
+
+.analysis-card.modern .ac-badge.modern.bull {
+  background: var(--color-bull-bg);
+  color: var(--color-bull);
+  border: 1px solid rgba(0, 212, 170, 0.3);
+}
+
+.analysis-card.modern .ac-badge.modern.bear {
+  background: var(--color-bear-bg);
+  color: var(--color-bear);
+  border: 1px solid rgba(255, 68, 102, 0.3);
+}
+
+.analysis-card.modern .ac-badge.modern.neutral {
+  background: rgba(122, 127, 142, 0.1);
+  color: var(--color-neutral);
+  border: 1px solid rgba(122, 127, 142, 0.3);
+}
+
+/* Modern Section Header */
+.section-header.modern {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-lg) 0 var(--space-md) 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.section-header.modern .section-icon {
+  font-size: 1rem;
+}
+
+.section-header.modern span:not(.section-icon) {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-2);
+}
+
+/* Modern Data Grid */
+.data-grid.modern {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}
+
+.data-item.modern {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.data-item.modern .di-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-2);
+}
+
+.data-item.modern .di-value {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Modern Reason List */
+.reason-list.modern {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-sm) 0;
+}
+
+.reason-list.modern li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  font-size: 0.85rem;
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+
+.reason-list.modern .reason-bullet {
+  color: var(--color-accent);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Hint Box */
+.hint-box {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-accent-bg);
+  border: 1px solid rgba(124, 106, 247, 0.2);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-md);
+}
+
+.hint-box .hint-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.hint-box span:not(.hint-icon) {
+  font-size: 0.85rem;
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+
+/* Modern Action Box */
+.action-box.modern {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-md);
+}
+
+.action-box.modern.success {
+  background: var(--color-bull-bg);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+}
+
+.action-box.modern.warning {
+  background: var(--color-bear-bg);
+  border: 1px solid rgba(255, 68, 102, 0.2);
+}
+
+.action-box.modern .action-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.action-box.modern .action-content {
+  font-size: 0.85rem;
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+
+.action-box.modern .action-content strong {
+  color: var(--color-text);
+}
+
+/* Modern Button Group */
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.btn-action.modern {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--color-text-2);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-action.modern:hover {
+  color: var(--color-text);
+  background: var(--color-surface-3);
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.btn-action.modern .btn-icon {
+  font-size: 0.9rem;
+}
+
+/* Modern Table */
+.table-container.modern {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.table-container.modern table {
+  margin: 0;
+}
+
+.table-note {
+  font-size: 0.75rem;
+  color: var(--color-text-2);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.options-table th {
+  font-size: 0.7rem;
+}
+
+.options-table td {
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.options-table .max-pain-row {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+/* Loading Card */
+.loading-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+  font-size: 0.9rem;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error Card */
+.error-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bear-bg);
+  border: 1px solid rgba(255, 68, 102, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+  font-size: 0.9rem;
+}
+
+.error-card .error-icon {
+  font-size: 1.25rem;
+}
+
+/* Movers Grid */
+.movers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.movers-section .movers-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.movers-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.mover-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.mover-item.gain {
+  border-left: 2px solid var(--color-bull);
+}
+
+.mover-item.loss {
+  border-left: 2px solid var(--color-bear);
+}
+
+.mover-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.mover-change {
+  font-weight: 600;
+}
+
+/* Funds Grid */
+.funds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-md);
+}
+
+.fund-card.modern {
+  position: relative;
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.fund-card.modern:hover {
+  border-color: var(--color-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.fund-card.modern .fund-icon {
+  font-size: 1.25rem;
+  margin-bottom: var(--space-xs);
+}
+
+.fund-card.modern .fund-name {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fund-card.modern .fund-nav {
+  font-size: 0.75rem;
+  color: var(--color-text-2);
+  margin-bottom: 2px;
+}
+
+.fund-card.modern .fund-change {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Report Content */
+.report-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.report-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.report-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-2);
+}
+
+.report-value {
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .market-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .data-grid.modern {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .movers-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .funds-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .analysis-card.modern .ac-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .market-cards-grid,
+  .stats-grid,
+  .funds-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .data-grid.modern {
+    grid-template-columns: 1fr;
+  }
+}
