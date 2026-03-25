@@ -53,10 +53,47 @@ router.get('/search/:q', async (req, res) => {
 
 // Comprehensive Mutual Fund Analysis
 router.get('/analyze/:code', async (req, res) => {
+  const code = req.params.code;
+  let data = null;
+
+  // Try MFAPI with retry
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await axios.get(`${MFAPI}${code}`, { timeout: 20000 });
+      data = response.data;
+      break;
+    } catch (e) {
+      if (attempt === 1) {
+        // Fallback: use cached data from watchlist
+        const cached = mfCache.get(code);
+        if (cached) {
+          const fundName = WATCHLIST.find(w => w.code === code)?.name || 'Unknown Fund';
+          return res.json({
+            code,
+            name: fundName,
+            category: WATCHLIST.find(w => w.code === code)?.category || 'Unknown',
+            riskLevel: WATCHLIST.find(w => w.code === code)?.risk || 'Moderate',
+            currentNAV: cached.data.nav,
+            date: cached.data.date,
+            returns: { '1w': null, '1m': null, '3m': null, '6m': null, '1y': null, '3y': null, '5y': null },
+            volatility: null,
+            sharpeRatio: null,
+            maxDrawdown: null,
+            consistency: null,
+            suitability: { shortTerm: 'Unknown', longTerm: 'Unknown', sip: 'Unknown' },
+            recommendation: 'HOLD',
+            confidence: 3,
+            reasons: ['MFAPI unavailable — using cached NAV data only', 'Full analysis requires live API access'],
+            fallback: true
+          });
+        }
+        return res.status(502).json({ error: 'MFAPI unavailable. Please try again later.', retryAfter: 30 });
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+
   try {
-    const code = req.params.code;
-    const { data } = await axios.get(`${MFAPI}${code}`, { timeout: 15000 });
-    
     const rows = Array.isArray(data?.data) ? data.data : [];
     if (!rows.length) {
       return res.status(404).json({ error: 'Fund not found or no data available' });

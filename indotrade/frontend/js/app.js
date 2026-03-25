@@ -1634,92 +1634,74 @@ async function loadRiskEngine() {
 
 function renderAITradePlanInline(s) {
   if (!s || s.signal === 'NO_SIGNAL') {
-    return `<div class="signal-card HOLD modern" style="margin-top:16px;">
-      <div class="signal-header modern">
-        <div class="signal-badge HOLD modern">
-          <span class="badge-icon">🤖</span>
-          <span>AI Trade Plan (Llama)</span>
-        </div>
-      </div>
-      <div class="signal-body">
-        <div class="no-signal-message">
-          <div class="no-signal-icon">⏸️</div>
-          <p class="muted">No signal — insufficient confluences or neutral RSI zone.</p>
-        </div>
-      </div>
-    </div>`;
+    return '<div class="analysis-card" style="margin-top:16px;border-left:3px solid var(--warn);">' +
+      '<div class="ac-header"><span class="ac-title">AI Trade Plan (Llama)</span>' +
+      '<span class="ac-badge HOLD">NO SIGNAL</span></div>' +
+      '<p class="muted">No signal — insufficient confluences, neutral RSI zone, or risk/reward below 1:1.5.</p></div>';
   }
   var cls = s.signal === 'BUY' ? 'BUY' : s.signal === 'SELL' ? 'SELL' : 'HOLD';
-  var signalIcon = s.signal === 'BUY' ? '📈' : s.signal === 'SELL' ? '📉' : '⏸️';
-  var confColor = s.confidence >= 7 ? 'bull-text' : s.confidence >= 4 ? 'muted' : 'bear-text';
+  var ps = s.positionSizing || {};
   
-  return `<div class="signal-card ${cls} modern" style="margin-top:16px;">
-    <div class="signal-header modern">
-      <div class="signal-badge ${cls} modern">
-        <span class="badge-icon">${signalIcon}</span>
-        <span>AI Trade Plan: ${s.signal}</span>
-      </div>
-      <div class="sig-v modern ${confColor}">
-        <span class="conf-label">Conf:</span>
-        <span class="conf-value">${s.confidence || 0}/10</span>
-      </div>
-    </div>
-    
-    <div class="signal-body">
-      <div class="signal-grid modern" style="margin-top:12px;">
-        <div class="sig-kv modern">
-          <span class="sig-k">⏱️ Timeframe</span>
-          <span class="sig-v">${s.timeframe || '-'}</span>
-        </div>
-        <div class="sig-kv modern">
-          <span class="sig-k">🕐 Best Window</span>
-          <span class="sig-v">${s.bestWindow || '-'}</span>
-        </div>
-        <div class="sig-kv modern entry-zone">
-          <span class="sig-k">📍 Entry Zone</span>
-          <span class="sig-v">₹${(s.entryZone?.low || 0).toLocaleString('en-IN')} - ₹${(s.entryZone?.high || 0).toLocaleString('en-IN')}</span>
-        </div>
-        <div class="sig-kv modern stop-loss">
-          <span class="sig-k">🛑 Stop Loss</span>
-          <span class="sig-v bear-text">₹${(s.stopLoss || 0).toLocaleString('en-IN')}</span>
-        </div>
-        <div class="sig-kv modern target">
-          <span class="sig-k">🎯 Target 1</span>
-          <span class="sig-v bull-text">₹${(s.target1 || 0).toLocaleString('en-IN')}</span>
-        </div>
-        <div class="sig-kv modern target">
-          <span class="sig-k">🎯 Target 2</span>
-          <span class="sig-v bull-text">₹${(s.target2 || 0).toLocaleString('en-IN')}</span>
-        </div>
-        <div class="sig-kv modern risk-reward">
-          <span class="sig-k">⚖️ Risk/Reward</span>
-          <span class="sig-v">${s.riskReward || '-'}</span>
-        </div>
-      </div>
-      
-      ${s.confluences && s.confluences.length > 0 ? `
-      <div class="confluences-section" style="margin-top:12px;">
-        <div class="section-title">
-          <span class="section-icon">✅</span>
-          <span>Confluences (${s.confluences.length})</span>
-        </div>
-        <ul class="confluences-list modern">
-          ${s.confluences.map(c => `<li><span class="confluence-bullet">✓</span>${c}</li>`).join('')}
-        </ul>
-      </div>` : ''}
-      
-      ${s.riskWarnings && s.riskWarnings.length > 0 ? `
-      <div class="warnings-section" style="margin-top:8px;">
-        <div class="section-title warning">
-          <span class="section-icon">⚠️</span>
-          <span>Warnings</span>
-        </div>
-        <ul class="warnings-list modern">
-          ${s.riskWarnings.map(w => `<li class="bear-text"><span class="warning-bullet">⚠</span>${w}</li>`).join('')}
-        </ul>
-      </div>` : ''}
-    </div>
-  </div>`;
+  var html = '<div class="analysis-card" style="margin-top:16px;border-left:3px solid ' + (cls === 'BUY' ? 'var(--bull)' : cls === 'SELL' ? 'var(--bear)' : 'var(--warn)') + ';">' +
+    '<div class="ac-header"><span class="ac-title">AI Trade Plan (Llama 3.3)</span>' +
+    '<span class="ac-badge ' + cls + '">' + s.signal + ' | Conf: ' + (s.confidence || 0) + '/10</span></div>';
+
+  // Trade Setup
+  html += '<div class="section-header">Trade Setup</div>' +
+    '<div class="data-grid">' +
+    '<div class="data-item"><span class="di-label">Timeframe</span><span class="di-value">' + (s.timeframe || '-') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Best Window</span><span class="di-value">' + (s.bestWindow || '-') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Entry Zone</span><span class="di-value">₹' + (s.entryZone?.low || 0).toLocaleString('en-IN') + ' - ₹' + (s.entryZone?.high || 0).toLocaleString('en-IN') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Stop Loss</span><span class="di-value bear-text">₹' + (s.stopLoss || 0).toLocaleString('en-IN') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Target 1</span><span class="di-value bull-text">₹' + (s.target1 || 0).toLocaleString('en-IN') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Target 2</span><span class="di-value bull-text">₹' + (s.target2 || 0).toLocaleString('en-IN') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Risk/Reward</span><span class="di-value">' + (s.riskReward || '-') + '</span></div>' +
+    '<div class="data-item"><span class="di-label">Invalidation</span><span class="di-value">₹' + (s.invalidation || 0).toLocaleString('en-IN') + '</span></div>' +
+    '</div>';
+
+  // Position Sizing
+  if (ps && (ps.units || ps.totalCost)) {
+    html += '<div class="section-header">Position Sizing (Capital: ₹' + (ps.totalCost ? Math.round(ps.totalCost / (ps.units || 1)).toLocaleString('en-IN') : '1,00,000') + ' risked)</div>' +
+      '<div class="data-grid">' +
+      '<div class="data-item"><span class="di-label">Units to Buy</span><span class="di-value bull-text">' + (ps.units || '-') + ' shares</span></div>' +
+      '<div class="data-item"><span class="di-label">Entry Price</span><span class="di-value">₹' + (ps.entryPrice || '-').toLocaleString('en-IN') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">Total Cost</span><span class="di-value">₹' + (ps.totalCost || '-').toLocaleString('en-IN') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">Risk Amount</span><span class="di-value bear-text">₹' + (ps.riskAmount || '-').toLocaleString('en-IN') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">Risk/Share</span><span class="di-value">₹' + (ps.riskPerShare || '-') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">Brokerage</span><span class="di-value muted">₹' + (ps.brokerage || '-') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">STT + GST</span><span class="di-value muted">₹' + (ps.totalCharges || '-') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">Break Even</span><span class="di-value">₹' + (ps.breakEven || '-') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">T1 Profit</span><span class="di-value bull-text">₹' + (ps.t1Profit || '-') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">T2 Profit</span><span class="di-value bull-text">₹' + (ps.t2Profit || '-') + '</span></div>' +
+      '<div class="data-item"><span class="di-label">Max Loss</span><span class="di-value bear-text">₹' + (ps.maxLoss || '-') + '</span></div>' +
+      '</div>' +
+      '<div class="action-box">Set <strong>' + (ps.units || 1) + ' units</strong> at entry <strong>₹' + (s.entryZone?.low || 0) + '-₹' + (s.entryZone?.high || 0) + '</strong>. Stop loss at <strong>₹' + (s.stopLoss || 0) + '</strong>. Take profit at <strong>₹' + (s.target1 || 0) + '</strong> (T1) and <strong>₹' + (s.target2 || 0) + '</strong> (T2).</div>';
+  }
+
+  // Confluences
+  if (s.confluences && s.confluences.length > 0) {
+    html += '<div class="section-header">Confluences (' + s.confluences.length + ')</div>' +
+      '<ul class="reason-list">' + s.confluences.map(function(c) { return '<li>' + c + '</li>'; }).join('') + '</ul>';
+  }
+
+  // Bullish/Bearish Factors
+  if (s.bullishFactors && s.bullishFactors.length > 0) {
+    html += '<div class="section-header">Bullish Factors</div>' +
+      '<ul class="reason-list">' + s.bullishFactors.map(function(b) { return '<li class="bull">' + b + '</li>'; }).join('') + '</ul>';
+  }
+  if (s.bearishFactors && s.bearishFactors.length > 0) {
+    html += '<div class="section-header">Bearish Factors</div>' +
+      '<ul class="reason-list">' + s.bearishFactors.map(function(b) { return '<li class="bear">' + b + '</li>'; }).join('') + '</ul>';
+  }
+
+  // Warnings
+  if (s.riskWarnings && s.riskWarnings.length > 0) {
+    html += '<div class="section-header">Warnings</div>' +
+      '<ul class="reason-list">' + s.riskWarnings.map(function(w) { return '<li class="bear">' + w + '</li>'; }).join('') + '</ul>';
+  }
+
+  html += '</div>';
+  return html;
 }
 
 function renderAIPlanGeneric(plan, type) {
