@@ -802,8 +802,8 @@ select:hover {
 
 /* Signal Grid */
 .signal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: var(--space-md);
   margin-bottom: var(--space-md);
 }
@@ -922,8 +922,8 @@ select:hover {
    Market Cards
    ----------------------------------------------- */
 .market-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
@@ -2188,6 +2188,15 @@ select:hover {
   border-color: var(--color-accent);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+.fund-card.modern.unavailable {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.fund-card.modern.unavailable:hover {
+  opacity: 0.8;
 }
 
 .fund-card.modern .fund-icon {

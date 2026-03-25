@@ -256,6 +256,11 @@ function renderCryptoAnalysisCard(a) {
 }
 
 function renderEquityAnalysisCard(a) {
+  // Handle undefined/null changePct
+  const dayChange = a.changePct !== undefined && a.changePct !== null ? a.changePct : 0;
+  const dayChangeClass = dayChange >= 0 ? 'bull-text' : 'bear-text';
+  const dayChangePrefix = dayChange >= 0 ? '+' : '';
+  
   return `<div class="signal-card" style="margin-top:16px;">
     <div class="signal-header">
       <div class="signal-badge ${a.recommendation}">${a.recommendation} — ${a.symbol}</div>
@@ -264,13 +269,13 @@ function renderEquityAnalysisCard(a) {
     <div class="confidence-bar-bg"><div class="confidence-bar-fill" style="width:${a.confidence * 10}%"></div></div>
     <div class="signal-grid" style="margin-top:16px;">
       <div class="sig-kv"><span class="sig-k">Price</span><span class="sig-v">₹${a.currentPrice?.toLocaleString('en-IN')}</span></div>
-      <div class="sig-kv"><span class="sig-k">Day Change</span><span class="sig-v ${a.changePct >= 0 ? 'bull-text' : 'bear-text'}">${a.changePct >= 0 ? '+' : ''}${a.changePct}%</span></div>
-      <div class="sig-kv"><span class="sig-k">YTD Return</span><span class="sig-v">${a.performance?.ytd}%</span></div>
-      <div class="sig-kv"><span class="sig-k">1M Return</span><span class="sig-v">${a.performance?.month}%</span></div>
-      <div class="sig-kv"><span class="sig-k">Volatility (ATR%)</span><span class="sig-v">${a.volatility?.pct}%</span></div>
-      <div class="sig-kv"><span class="sig-k">Volume Ratio</span><span class="sig-v">${a.volumeAnalysis?.ratio}x</span></div>
-      <div class="sig-kv"><span class="sig-k">Support</span><span class="sig-v">₹${a.levels?.support?.toLocaleString('en-IN')}</span></div>
-      <div class="sig-kv"><span class="sig-k">Resistance</span><span class="sig-v">₹${a.levels?.resistance?.toLocaleString('en-IN')}</span></div>
+      <div class="sig-kv"><span class="sig-k">Day Change</span><span class="sig-v ${dayChangeClass}">${dayChangePrefix}${dayChange}%</span></div>
+      <div class="sig-kv"><span class="sig-k">YTD Return</span><span class="sig-v">${a.performance?.ytd ?? '-'}%</span></div>
+      <div class="sig-kv"><span class="sig-k">1M Return</span><span class="sig-v">${a.performance?.month ?? '-'}%</span></div>
+      <div class="sig-kv"><span class="sig-k">Volatility (ATR%)</span><span class="sig-v">${a.volatility?.pct ?? '-'}%</span></div>
+      <div class="sig-kv"><span class="sig-k">Volume Ratio</span><span class="sig-v">${a.volumeAnalysis?.ratio ?? '-'}x</span></div>
+      <div class="sig-kv"><span class="sig-k">Support</span><span class="sig-v">₹${a.levels?.support?.toLocaleString('en-IN') ?? '-'}</span></div>
+      <div class="sig-kv"><span class="sig-k">Resistance</span><span class="sig-v">₹${a.levels?.resistance?.toLocaleString('en-IN') ?? '-'}</span></div>
     </div>
     ${a.indicators ? `<div style="margin-top:16px;">
       <div class="sig-k">Technical Indicators</div>

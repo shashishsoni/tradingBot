@@ -93,13 +93,16 @@ router.get('/analyze/:symbol', async (req, res) => {
     
     // Performance metrics
     const currentPrice = meta.regularMarketPrice;
+    const previousClose = meta.previousClose || meta.chartPreviousClose;
     const yearStart = closes[0];
     const monthAgo = closes[Math.max(0, closes.length - 22)];
     const weekAgo = closes[Math.max(0, closes.length - 5)];
     
-    const ytdReturn = ((currentPrice - yearStart) / yearStart * 100).toFixed(2);
-    const monthReturn = ((currentPrice - monthAgo) / monthAgo * 100).toFixed(2);
-    const weekReturn = ((currentPrice - weekAgo) / weekAgo * 100).toFixed(2);
+    // Day change from previous close
+    const dayChange = previousClose ? ((currentPrice - previousClose) / previousClose * 100).toFixed(2) : null;
+    const ytdReturn = yearStart ? ((currentPrice - yearStart) / yearStart * 100).toFixed(2) : null;
+    const monthReturn = monthAgo ? ((currentPrice - monthAgo) / monthAgo * 100).toFixed(2) : null;
+    const weekReturn = weekAgo ? ((currentPrice - weekAgo) / weekAgo * 100).toFixed(2) : null;
     
     // Volume analysis
     const avgVolume20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
@@ -191,7 +194,7 @@ router.get('/analyze/:symbol', async (req, res) => {
       currentPrice,
       previousClose: prev,
       change: hasPrev ? +(currentPrice - prev).toFixed(2) : 0,
-      changePct: changePctVal,
+      changePct: dayChange !== null ? +dayChange : changePctVal,
       volume: meta.regularMarketVolume,
       dayHigh: meta.regularMarketDayHigh,
       dayLow: meta.regularMarketDayLow,

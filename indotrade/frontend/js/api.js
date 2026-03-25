@@ -164,3 +164,7 @@ const api = {
     }
   }
 };
+
+// Make api globally available
+window.api = api;
+window.ensureApiBase = ensureApiBase;

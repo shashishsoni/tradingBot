@@ -786,56 +786,94 @@ async function analyzeCryptoDetail(coin) {
 async function renderMfTabData() {
   const container = document.getElementById('mf-container');
   if (!container) return;
+  
+  // First-time load: set up skeleton with detail container
   if (!container.dataset.loaded) {
-    container.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Loading...</span></div>`;
+    container.innerHTML = `
+      <div id="mf-funds-grid-wrapper"><div class="loading-card"><div class="loading-spinner"></div><span>Loading mutual funds...</span></div></div>
+      <div id="mf-buttons-wrapper"></div>
+      <div id="mf-detail-container" style="margin-top:16px;"></div>`;
     container.dataset.loaded = '1';
   }
+  
   try {
     const data = await api.mf.watchlist();
-    const ranked = data.filter(f => !f.error && Number.isFinite(Number(f.change))).sort((a, b) => Number(b.change) - Number(a.change));
-    const best = ranked[0];
-    const worst = ranked[ranked.length - 1];
+    
+    if (!data || data.length === 0) {
+      const gridWrapper = document.getElementById('mf-funds-grid-wrapper');
+      if (gridWrapper) gridWrapper.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>No data from API</span></div>`;
+      return;
+    }
 
-    // Fund cards with modern styling
-    container.innerHTML = `
-      <div class="funds-grid">
-        ${data.filter(f => !f.error).map(function(f) {
-          var nav = Number.parseFloat(f.nav);
-          var chg = Number.parseFloat(f.change);
-          const isPositive = chg >= 0;
-          return `<div class="fund-card modern" onclick="analyzeMfDetail('${f.code}')">
-            <div class="fund-icon">📈</div>
-            <div class="fund-name">${f.name.split(' ').slice(0, 2).join(' ')}</div>
-            <div class="fund-nav">₹${Number.isFinite(nav) ? nav.toFixed(4) : '-'}</div>
-            <div class="fund-change ${isPositive ? 'bull-text' : 'bear-text'}">
-              ${isPositive ? '▲' : '▼'} ${isPositive ? '+' : ''}${chg || 0}%
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-      <div class="button-group" style="margin-top:16px;">
-        ${data.filter(f => !f.error).map(function(f) {
-          return `<button class="btn-action modern" onclick="analyzeMfDetail('${f.code}')">
-            <span class="btn-icon">📊</span>
-            <span>${f.name.split(' ')[0]}</span>
-          </button>`;
-        }).join('')}
-      </div>
-      <div id="mf-detail-container" style="margin-top:16px;"></div>`;
+    // Only update the fund cards and buttons — do NOT touch mf-detail-container
+    const gridWrapper = document.getElementById('mf-funds-grid-wrapper');
+    if (gridWrapper) {
+      gridWrapper.innerHTML = `
+        <div class="funds-grid">
+          ${data.map(function(f) {
+            const nav = parseFloat(f.nav);
+            const chg = parseFloat(f.change);
+            const isPositive = isFinite(nav) && chg >= 0;
+            return `<div class="fund-card modern ${f.error || !nav ? 'unavailable' : ''}" onclick="analyzeMfDetail('${f.code}')">
+              <div class="fund-icon">${f.error || !nav ? '⚠️' : '📈'}</div>
+              <div class="fund-name">${f.name.split(' ').slice(0, 2).join(' ')}</div>
+              <div class="fund-nav">${isFinite(nav) ? '₹' + nav.toFixed(4) : '-'}</div>
+              <div class="fund-change ${f.error || !nav ? 'muted' : (isPositive ? 'bull-text' : 'bear-text')}">
+                ${f.error || !nav ? 'API unavailable' : (isPositive ? '▲' : '▼') + ' ' + (isPositive ? '+' : '') + (chg || 0) + '%'}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    const btnsWrapper = document.getElementById('mf-buttons-wrapper');
+    if (btnsWrapper) {
+      btnsWrapper.innerHTML = `
+        <div class="button-group" style="margin-top:16px;">
+          ${data.map(function(f) {
+            return `<button class="btn-action modern" onclick="analyzeMfDetail('${f.code}')">
+              <span class="btn-icon">📊</span>
+              <span>${f.name.split(' ')[0]}</span>
+            </button>`;
+          }).join('')}
+        </div>`;
+    }
   } catch (e) {
-    container.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>Unable to load mutual fund data.</span></div>`;
+    const gridWrapper = document.getElementById('mf-funds-grid-wrapper');
+    if (gridWrapper) gridWrapper.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>Error: ${e.message}</span></div>`;
   }
 }
 
 async function analyzeMfDetail(code) {
   const detailContainer = document.getElementById('mf-detail-container');
   if (!detailContainer) return;
-  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Analyzing fund + AI Trade Plan loading...</span></div>`;
+  detailContainer.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><span>Loading fund analysis...</span></div>`;
+  
   try {
     const analysis = await api.mf.analyze(code);
+    
+    if (!analysis || analysis.error) {
+      detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>API unavailable. Try again later.</span></div>`;
+      return;
+    }
+    
     const rec = analysis.recommendation || 'HOLD';
-    const conf = analysis.confidence || 0;
-    const recClass = rec === 'BUY' || rec === 'START_SIP' ? 'bull' : rec === 'AVOID' || rec === 'DUMP' ? 'bear' : 'neutral';
+    const confidence = analysis.confidence || 5;
+    const recClass = rec === 'BUY' || rec === 'START_SIP' ? 'bull' : rec === 'AVOID' ? 'bear' : 'neutral';
+    const recIcon = rec === 'BUY' || rec === 'START_SIP' ? '🟢' : rec === 'AVOID' ? '🔴' : '🟡';
+    const returns = analysis.returns || {};
+    const reasons = analysis.reasons || [];
+    const suit = analysis.suitability || {};
+    const isFallback = analysis.fallback === true;
+    
+    // Helper to format values
+    const fmtVal = (v, suffix) => v != null && v !== 'N/A' ? v + (suffix || '') : '—';
+    const fmtReturn = (v) => {
+      if (v == null) return '<span class="muted">—</span>';
+      const cls = v >= 0 ? 'bull-text' : 'bear-text';
+      const arrow = v >= 0 ? '▲' : '▼';
+      return `<span class="${cls}">${arrow} ${v >= 0 ? '+' : ''}${v}%</span>`;
+    };
     
     let html = `
       <div class="analysis-card modern" style="margin-top:16px;">
@@ -844,9 +882,14 @@ async function analyzeMfDetail(code) {
             <span class="ac-icon">📈</span>
             <span class="ac-title">${analysis.name}</span>
           </div>
-          <span class="ac-badge modern ${recClass}">${rec} | Conf: ${conf}/10</span>
+          <span class="ac-badge modern ${recClass}">${recIcon} ${rec} | Conf: ${confidence}/10</span>
         </div>
-        <div class="confidence-bar-bg"><div class="confidence-bar-fill ${recClass}" style="width: ${conf * 10}%"></div></div>
+        <div class="confidence-bar-bg"><div class="confidence-bar-fill ${recClass}" style="width: ${confidence * 10}%"></div></div>
+        
+        ${isFallback ? `<div class="action-box modern warning" style="margin:12px 0 4px;">
+          <div class="action-icon">ℹ️</div>
+          <div class="action-content">Historical data API is temporarily down. Showing category-based analysis with live NAV from AMFI.</div>
+        </div>` : ''}
         
         <div class="section-header modern">
           <span class="section-icon">📊</span>
@@ -866,20 +909,24 @@ async function analyzeMfDetail(code) {
             <span class="di-value">₹${analysis.currentNAV}</span>
           </div>
           <div class="data-item modern">
+            <span class="di-label">Date</span>
+            <span class="di-value">${analysis.date || '—'}</span>
+          </div>
+          <div class="data-item modern">
             <span class="di-label">Volatility</span>
-            <span class="di-value">${analysis.volatility}%</span>
+            <span class="di-value">${fmtVal(analysis.volatility, '%')}</span>
           </div>
           <div class="data-item modern">
             <span class="di-label">Sharpe Ratio</span>
-            <span class="di-value">${analysis.sharpeRatio || 'N/A'}</span>
+            <span class="di-value">${fmtVal(analysis.sharpeRatio)}</span>
           </div>
           <div class="data-item modern">
             <span class="di-label">Max Drawdown</span>
-            <span class="di-value bear-text">${analysis.maxDrawdown}%</span>
+            <span class="di-value bear-text">${analysis.maxDrawdown != null ? '-' + analysis.maxDrawdown + '%' : '—'}</span>
           </div>
           <div class="data-item modern">
             <span class="di-label">Consistency</span>
-            <span class="di-value">${analysis.consistency || 'N/A'}%</span>
+            <span class="di-value">${fmtVal(analysis.consistency, '% positive months')}</span>
           </div>
         </div>
         
@@ -888,33 +935,15 @@ async function analyzeMfDetail(code) {
           <span>Returns</span>
         </div>
         <div class="data-grid modern">
-          <div class="data-item modern">
-            <span class="di-label">1W</span>
-            <span class="di-value ${(analysis.returns?.['1w'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1w'] ?? 'N/A'}%</span>
-          </div>
-          <div class="data-item modern">
-            <span class="di-label">1M</span>
-            <span class="di-value ${(analysis.returns?.['1m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1m'] ?? 'N/A'}%</span>
-          </div>
-          <div class="data-item modern">
-            <span class="di-label">3M</span>
-            <span class="di-value ${(analysis.returns?.['3m'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3m'] ?? 'N/A'}%</span>
-          </div>
-          <div class="data-item modern">
-            <span class="di-label">1Y</span>
-            <span class="di-value ${(analysis.returns?.['1y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['1y'] ?? 'N/A'}%</span>
-          </div>
-          <div class="data-item modern">
-            <span class="di-label">3Y</span>
-            <span class="di-value ${(analysis.returns?.['3y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['3y'] ?? 'N/A'}%</span>
-          </div>
-          <div class="data-item modern">
-            <span class="di-label">5Y</span>
-            <span class="di-value ${(analysis.returns?.['5y'] || 0) >= 0 ? 'bull-text' : 'bear-text'}">${analysis.returns?.['5y'] ?? 'N/A'}%</span>
-          </div>
+          <div class="data-item modern"><span class="di-label">1W</span><span class="di-value">${fmtReturn(returns['1w'])}</span></div>
+          <div class="data-item modern"><span class="di-label">1M</span><span class="di-value">${fmtReturn(returns['1m'])}</span></div>
+          <div class="data-item modern"><span class="di-label">3M</span><span class="di-value">${fmtReturn(returns['3m'])}</span></div>
+          <div class="data-item modern"><span class="di-label">6M</span><span class="di-value">${fmtReturn(returns['6m'])}</span></div>
+          <div class="data-item modern"><span class="di-label">1Y</span><span class="di-value">${fmtReturn(returns['1y'])}</span></div>
+          <div class="data-item modern"><span class="di-label">3Y</span><span class="di-value">${fmtReturn(returns['3y'])}</span></div>
+          <div class="data-item modern"><span class="di-label">5Y</span><span class="di-value">${fmtReturn(returns['5y'])}</span></div>
         </div>
         
-        ${analysis.suitability ? `
         <div class="section-header modern">
           <span class="section-icon">🎯</span>
           <span>Suitability</span>
@@ -922,41 +951,42 @@ async function analyzeMfDetail(code) {
         <div class="data-grid modern">
           <div class="data-item modern">
             <span class="di-label">Short Term</span>
-            <span class="di-value">${analysis.suitability.shortTerm}</span>
+            <span class="di-value">${suit.shortTerm || '—'}</span>
           </div>
           <div class="data-item modern">
             <span class="di-label">Long Term</span>
-            <span class="di-value">${analysis.suitability.longTerm}</span>
+            <span class="di-value">${suit.longTerm || '—'}</span>
           </div>
           <div class="data-item modern">
             <span class="di-label">SIP</span>
-            <span class="di-value">${analysis.suitability.sip}</span>
+            <span class="di-value">${suit.sip || '—'}</span>
           </div>
-        </div>` : ''}
-        
+        </div>
+
         <div class="section-header modern">
+          <span class="section-icon">💡</span>
+          <span>Recommendation</span>
+        </div>
+        <div class="action-box modern ${recClass === 'bull' ? 'success' : recClass === 'bear' ? 'warning' : ''}">
+          <div class="action-icon">${recIcon}</div>
+          <div class="action-content">
+            <strong>${rec}</strong> — Confidence ${confidence}/10
+          </div>
+        </div>
+        
+        <div class="section-header modern" style="margin-top:12px;">
           <span class="section-icon">🔍</span>
           <span>Analysis Reasons</span>
         </div>
         <ul class="reason-list modern">
-          ${(analysis.reasons || []).map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('')}
+          ${reasons.map(r => `<li><span class="reason-bullet">•</span>${r}</li>`).join('') || '<li>Category-based assessment applied</li>'}
         </ul>
-        
-        <div id="mf-ai-plan-loading" class="loading-card" style="margin-top:12px;"><div class="loading-spinner"></div><span>Generating AI Trade Plan...</span></div>
       </div>`;
     detailContainer.innerHTML = html;
-
-    // AI Trade Plan
-    try {
-      const { analysis: aiPlan } = await api.ai.analyzeMf(analysis);
-      const planEl = document.getElementById('mf-ai-plan-loading');
-      if (planEl) planEl.outerHTML = renderAIPlanGeneric(aiPlan, 'MF');
-    } catch (e) {
-      const planEl = document.getElementById('mf-ai-plan-loading');
-      if (planEl) planEl.outerHTML = `<div class="error-card"><span class="error-icon">⚠️</span><span>AI Trade Plan unavailable: ${e.message}</span></div>`;
-    }
+    
   } catch (e) {
-    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Analysis failed: ${e.message}</span></div>`;
+    console.error('[MF] Error:', e);
+    detailContainer.innerHTML = `<div class="error-card"><span class="error-icon">❌</span><span>Error: ${e.message}</span></div>`;
   }
 }
 
